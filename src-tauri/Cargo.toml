@@ -1,6 +1,6 @@
 [package]
 name = "flowdesk-pro"
-version = "0.1.0"
+version = "0.1.1"
 description = "Productividad local y privada para macOS"
 authors = ["FlowDesk Pro"]
 edition = "2024"
