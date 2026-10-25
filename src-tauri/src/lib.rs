@@ -6,7 +6,7 @@ mod shortcuts;
 mod tray;
 mod windows;
 
-use background::{TimerService, clock::SystemClock};
+use background::{TimerService, clock::SystemClock, reminders::ReminderService};
 use database::Database;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
@@ -22,6 +22,9 @@ pub(crate) fn prepare_exit(app: &AppHandle) {
         (app.try_state::<TimerService>(), app.try_state::<Database>())
     {
         let _ = timers.suspend_all(&database);
+        if let Some(tracking) = app.try_state::<background::app_tracking::AppTrackingService>() {
+            tracking.finish(&database);
+        }
     }
     windows::notes::persist_all(app);
 }
@@ -37,6 +40,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(MAIN_WINDOW_STATE)
@@ -50,6 +54,8 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            background::macos::present_notifications_in_foreground();
             let database = Database::initialize(app.handle())?;
             let start_hidden = std::env::args().any(|argument| argument == "--autostart")
                 && commands::preferences::stored_launch_hidden(&database).unwrap_or(false);
@@ -57,11 +63,19 @@ pub fn run() {
             let _ = timers.recover(&database);
             app.manage(database);
             app.manage(timers);
+            app.manage(ReminderService::default());
+            app.manage(background::app_tracking::AppTrackingService::default());
+            app.manage(background::clipboard::ClipboardService::new(
+                app.path().app_data_dir()?.join("clipboard"),
+            ));
             let shortcut_status = shortcuts::register(app.handle());
             app.manage(shortcut_status);
             windows::create_tray_panel(app.handle())?;
             tray::create(app)?;
             background::spawn_ticker(app.handle().clone());
+            background::spawn_reminders(app.handle().clone());
+            background::spawn_clipboard(app.handle().clone());
+            background::spawn_app_tracking(app.handle().clone());
             let database = app.state::<Database>();
             commands::notes::restore_visible(app.handle(), &database);
             if start_hidden {
@@ -138,6 +152,38 @@ pub fn run() {
             commands::focus::list_focus_sessions,
             commands::focus::update_time_entry,
             commands::focus::delete_time_entry,
+            commands::calendar::list_calendar,
+            commands::calendar::create_event,
+            commands::calendar::update_event,
+            commands::calendar::delete_event,
+            commands::reminders::get_reminder_settings,
+            commands::reminders::update_reminder_settings,
+            commands::reminders::list_reminders,
+            commands::workspaces::get_workspaces,
+            commands::workspaces::set_active_workspace,
+            commands::workspaces::create_workspace,
+            commands::workspaces::update_workspace,
+            commands::workspaces::archive_workspace,
+            commands::workspaces::delete_workspace,
+            commands::workspaces::set_workspace_projects,
+            commands::workspaces::set_workspace_notes,
+            commands::workspaces::add_workspace_resource,
+            commands::workspaces::remove_workspace_resource,
+            commands::workspaces::open_workspace_resources,
+            commands::clipboard::get_clipboard_settings,
+            commands::clipboard::update_clipboard_settings,
+            commands::clipboard::list_clipboard,
+            commands::clipboard::copy_clipboard_item,
+            commands::clipboard::set_clipboard_favorite,
+            commands::clipboard::delete_clipboard_item,
+            commands::clipboard::clear_clipboard,
+            commands::clipboard::get_clipboard_image,
+            commands::clipboard::exclude_clipboard_app,
+            commands::app_tracking::get_app_tracking_settings,
+            commands::app_tracking::update_app_tracking_settings,
+            commands::app_tracking::get_app_usage,
+            commands::app_tracking::exclude_tracking_app,
+            commands::app_tracking::clear_app_tracking,
             shortcuts::get_shortcut_status,
         ]);
 

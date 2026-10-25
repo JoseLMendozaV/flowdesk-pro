@@ -1,9 +1,10 @@
 use crate::{
+    commands::workspaces::{active_workspace, event_scope, note_scope, project_scope, task_scope},
     database::Database,
     models::{ActiveTimer, DashboardNote, DashboardSummary, DashboardTask, UpcomingEvent},
 };
 use chrono::{Local, TimeZone};
-use rusqlite::OptionalExtension;
+use rusqlite::{OptionalExtension, params};
 use tauri::State;
 
 pub(crate) fn today_bounds() -> Result<(i64, i64), String> {
@@ -20,28 +21,44 @@ pub fn load_dashboard(database: &Database) -> Result<DashboardSummary, String> {
     let (today_start, tomorrow_start) = today_bounds()?;
     let now = Local::now().timestamp();
 
+    // Tareas, proyectos, notas y eventos siguen al espacio activo (`?3`); el tiempo no.
+    let tasks_in = format!("(?3 IS NULL OR {})", task_scope("t", "?3"));
+    let projects_in = format!("(?3 IS NULL OR {})", project_scope("p", "?3"));
     database.with_connection(|connection| {
+        let workspace_id = active_workspace(connection)?;
+        let scoped = params![today_start, tomorrow_start, workspace_id];
         let today_tasks = connection.query_row(
-            "SELECT COUNT(*) FROM tasks
-             WHERE status NOT IN ('completed', 'cancelled')
-             AND due_at >= ?1 AND due_at < ?2",
-            [today_start, tomorrow_start],
+            &format!(
+                "SELECT COUNT(*) FROM tasks t
+                 WHERE t.status NOT IN ('completed', 'cancelled')
+                 AND t.due_at >= ?1 AND t.due_at < ?2 AND {tasks_in}"
+            ),
+            scoped,
             |row| row.get(0),
         )?;
         let overdue_tasks = connection.query_row(
-            "SELECT COUNT(*) FROM tasks
-             WHERE status NOT IN ('completed', 'cancelled') AND due_at < ?1",
-            [today_start],
+            &format!(
+                "SELECT COUNT(*) FROM tasks t
+                 WHERE t.status NOT IN ('completed', 'cancelled') AND t.due_at < ?1
+                 AND {tasks_in}"
+            ),
+            scoped,
             |row| row.get(0),
         )?;
         let completed_today = connection.query_row(
-            "SELECT COUNT(*) FROM tasks WHERE completed_at >= ?1 AND completed_at < ?2",
-            [today_start, tomorrow_start],
+            &format!(
+                "SELECT COUNT(*) FROM tasks t
+                 WHERE t.completed_at >= ?1 AND t.completed_at < ?2 AND {tasks_in}"
+            ),
+            scoped,
             |row| row.get(0),
         )?;
         let active_projects = connection.query_row(
-            "SELECT COUNT(*) FROM projects WHERE status = 'active' AND archived_at IS NULL",
-            [],
+            &format!(
+                "SELECT COUNT(*) FROM projects p
+                 WHERE p.status = 'active' AND p.archived_at IS NULL AND {projects_in}"
+            ),
+            scoped,
             |row| row.get(0),
         )?;
         let focus_seconds_today = connection.query_row(
@@ -57,14 +74,16 @@ pub fn load_dashboard(database: &Database) -> Result<DashboardSummary, String> {
             |row| row.get(0),
         )?;
 
-        let mut task_statement = connection.prepare(
+        let mut task_statement = connection.prepare(&format!(
             "SELECT t.id, t.title, t.priority, t.due_at, t.due_has_time, p.color
              FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
              WHERE t.status NOT IN ('completed', 'cancelled') AND t.due_at IS NOT NULL
+             AND {}
              ORDER BY t.due_at ASC LIMIT 5",
-        )?;
+            format_args!("(?1 IS NULL OR {})", task_scope("t", "?1"))
+        ))?;
         let upcoming_tasks = task_statement
-            .query_map([], |row| {
+            .query_map([&workspace_id], |row| {
                 Ok(DashboardTask {
                     id: row.get(0)?,
                     title: row.get(1)?,
@@ -76,12 +95,13 @@ pub fn load_dashboard(database: &Database) -> Result<DashboardSummary, String> {
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut note_statement = connection.prepare(
-            "SELECT id, title, substr(content, 1, 120), color, updated_at FROM notes
-             WHERE is_archived = 0 ORDER BY updated_at DESC LIMIT 4",
-        )?;
+        let mut note_statement = connection.prepare(&format!(
+            "SELECT n.id, n.title, substr(n.content, 1, 120), n.color, n.updated_at FROM notes n
+             WHERE n.is_archived = 0 AND {} ORDER BY n.updated_at DESC LIMIT 4",
+            note_scope("n", "?1")
+        ))?;
         let recent_notes = note_statement
-            .query_map([], |row| {
+            .query_map([&workspace_id], |row| {
                 Ok(DashboardNote {
                     id: row.get(0)?,
                     title: row.get(1)?,
@@ -94,14 +114,18 @@ pub fn load_dashboard(database: &Database) -> Result<DashboardSummary, String> {
 
         let next_event = connection
             .query_row(
-                "SELECT id, title, starts_at FROM calendar_events
-                 WHERE ends_at >= ?1 ORDER BY starts_at ASC LIMIT 1",
-                [now],
+                &format!(
+                    "SELECT e.id, e.title, e.starts_at, e.is_all_day FROM calendar_events e
+                     WHERE e.ends_at > ?1 AND {} ORDER BY e.starts_at ASC LIMIT 1",
+                    event_scope("e", "?2")
+                ),
+                params![now, workspace_id],
                 |row| {
                     Ok(UpcomingEvent {
                         id: row.get(0)?,
                         title: row.get(1)?,
                         starts_at: row.get(2)?,
+                        is_all_day: row.get(3)?,
                     })
                 },
             )

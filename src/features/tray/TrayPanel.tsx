@@ -13,22 +13,19 @@ import {
   StickyNote,
   Timer,
 } from "lucide-react";
+import logo from "../../assets/flowdesk-logo.png";
 import { useDashboard } from "../dashboard/useDashboard";
+import { useWorkspaces } from "../workspaces/useWorkspaces";
 import { formatClock, sessionLabels, useLiveTimer, useTimer } from "../focus/useTimer";
 import { useDataChanged } from "../../hooks/useDataChanged";
 import { flowdeskApi } from "../../services/flowdeskApi";
-import { describeDue, errorMessage, noonTodayUnix } from "../../services/format";
+import { describeDue, describeEventStart, errorMessage, noonTodayUnix } from "../../services/format";
 import { useAppStore } from "../../stores/appStore";
 
 const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   weekday: "long",
   day: "numeric",
   month: "long",
-});
-
-const timeFormatter = new Intl.DateTimeFormat("es-ES", {
-  hour: "2-digit",
-  minute: "2-digit",
 });
 
 export function TrayPanel() {
@@ -40,9 +37,10 @@ export function TrayPanel() {
   const timer = useTimer();
   const live = useLiveTimer(timer.snapshot);
   const pomodoro = timer.snapshot?.pomodoro ?? null;
+  const workspaces = useWorkspaces();
 
   // El panel vive oculto entre usos: se refresca al cambiar los datos y cada vez que se muestra.
-  useDataChanged(["tasks", "projects", "notes"], refreshDashboard);
+  useDataChanged(["tasks", "projects", "notes", "calendar"], refreshDashboard);
   useEffect(() => {
     window.addEventListener("focus", refreshDashboard);
     return () => window.removeEventListener("focus", refreshDashboard);
@@ -77,7 +75,7 @@ export function TrayPanel() {
       <section className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[var(--line-strong)] bg-[var(--surface)] shadow-2xl">
         <header data-tauri-drag-region className="flex items-start justify-between border-b border-[var(--line)] px-4 pb-3 pt-4">
           <div data-tauri-drag-region className="flex items-center gap-2.5">
-            <div className="grid size-8 place-items-center rounded-[10px] bg-gradient-to-br from-[#6e8bff] to-[#806ce8] text-sm font-bold text-white">F</div>
+            <img src={logo} alt="" className="size-8" draggable={false} />
             <div>
               <h1 className="text-[13px] font-semibold">FlowDesk Pro</h1>
               <p className="mt-0.5 text-[9px] text-[var(--muted)]">{dateFormatter.format(new Date())}</p>
@@ -102,10 +100,21 @@ export function TrayPanel() {
               <div className="tray-stat"><Timer className="text-violet-500" /><strong>{pomodoro ? formatClock(live.remaining) : "—"}</strong><span>{pomodoro ? `${sessionLabels[pomodoro.sessionType].toLowerCase()}${pomodoro.status === "paused" ? " (pausa)" : ""}` : "sin sesión"}</span></div>
             </div>
 
-            <div className="mt-2 flex items-center gap-2 rounded-lg bg-[var(--inset)] px-2.5 py-2 text-[9px] text-[var(--muted)]">
-              <span className="size-1.5 rounded-full bg-violet-500" />
-              Ámbito: <strong className="font-medium text-[var(--text)]">Todos los espacios</strong>
-            </div>
+            <label className="mt-2 flex items-center gap-2 rounded-lg bg-[var(--inset)] px-2.5 py-1.5 text-[9px] text-[var(--muted)]">
+              <span className="size-1.5 flex-none rounded-full" style={{ backgroundColor: workspaces.active?.color ?? "#8b5cf6" }} />
+              Espacio
+              <select
+                value={workspaces.activeId ?? ""}
+                onChange={(event) => void workspaces.activate(event.target.value || null)}
+                aria-label="Cambiar espacio de trabajo"
+                className="min-w-0 flex-1 truncate rounded-md bg-transparent py-0.5 text-[10px] font-medium text-[var(--text)] outline-none"
+              >
+                <option value="">Todos los espacios</option>
+                {workspaces.workspaces.filter((workspace) => !workspace.isArchived).map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                ))}
+              </select>
+            </label>
 
             <form onSubmit={createTask} className="mt-4">
               <label htmlFor="tray-task" className="mb-2 block text-[10px] font-semibold">Captura rápida</label>
@@ -156,7 +165,7 @@ export function TrayPanel() {
                 <p className="text-[9px] text-[var(--muted)]">Próximo evento</p>
                 <p className="truncate text-[10px] font-medium">{data.nextEvent ? data.nextEvent.title : "Sin compromisos próximos"}</p>
               </div>
-              {data.nextEvent && <time className="text-[9px] text-[var(--muted)]">{timeFormatter.format(new Date(data.nextEvent.startsAt * 1000))}</time>}
+              {data.nextEvent && <time className="flex-none text-[9px] text-[var(--muted)]">{describeEventStart(data.nextEvent.startsAt, data.nextEvent.isAllDay)}</time>}
             </div>
 
             <button type="button" onClick={() => void flowdeskApi.openMain("dashboard")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent-soft)] px-3 py-2.5 text-[11px] font-medium text-[var(--accent)]">
@@ -171,7 +180,7 @@ export function TrayPanel() {
         ) : null}
 
         <footer className="flex items-center justify-between border-t border-[var(--line)] px-3 py-2">
-          <button type="button" disabled title="Disponible en la fase de calendario" className="tray-footer-action opacity-50"><CalendarDays /> Agenda</button>
+          <button type="button" onClick={() => void flowdeskApi.openMain("calendar")} className="tray-footer-action"><CalendarDays /> Agenda</button>
           <button type="button" onClick={() => void flowdeskApi.openMain("settings")} className="tray-footer-action"><Settings /> Configuración</button>
           <button type="button" onClick={() => void flowdeskApi.quit()} className="tray-footer-action hover:text-red-500"><LogOut /> Salir</button>
         </footer>

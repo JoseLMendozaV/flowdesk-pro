@@ -1,9 +1,18 @@
 use serde::Serialize;
 
+mod app_tracking;
+mod calendar;
+mod clipboard;
 mod focus;
 mod projects;
 mod tasks;
+mod workspaces;
 
+pub use app_tracking::{AppTrackingSettings, AppUsage, AppUsageReport};
+pub use calendar::{
+    CalendarEvent, CalendarRange, CalendarTask, EventInput, ReminderItem, ReminderSettings,
+};
+pub use clipboard::{ClipboardItem, ClipboardSettings, ExcludedApp};
 pub use focus::{
     ActiveEntry, ActivePomodoro, DayStat, EntryInput, FocusSession, PomodoroSettings, ProjectTime,
     StartPomodoro, TimeEntry, TimeStats, TimerSnapshot, WorkContext,
@@ -12,6 +21,7 @@ pub use projects::{ProjectDeleteMode, ProjectInput, ProjectSummary};
 pub use tasks::{
     LinkedNote, Subtask, Tag, TaskDetail, TaskFilter, TaskInput, TaskSort, TaskSummary, TaskView,
 };
+pub use workspaces::{Workspace, WorkspaceInput, WorkspaceResource, WorkspaceState};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +50,7 @@ pub struct UpcomingEvent {
     pub id: String,
     pub title: String,
     pub starts_at: i64,
+    pub is_all_day: bool,
 }
 
 #[derive(Debug, Serialize)]

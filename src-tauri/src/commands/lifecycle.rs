@@ -9,6 +9,8 @@ const VALID_SECTIONS: &[&str] = &[
     "focus",
     "time",
     "calendar",
+    "workspaces",
+    "clipboard",
     "settings",
 ];
 

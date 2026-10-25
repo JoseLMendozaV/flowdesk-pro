@@ -1,5 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  CalendarEvent,
+  CalendarRange,
+  EventInput,
+  ReminderItem,
+  ReminderSettings,
+} from "../types/calendar";
+import type { AppTrackingSettings, AppUsageReport } from "../types/appTracking";
+import type { ClipboardItem, ClipboardSettings } from "../types/clipboard";
+import type {
   DashboardSummary,
   Note,
   ShortcutStatus,
@@ -27,6 +36,7 @@ import type {
   TaskStatus,
   TaskSummary,
 } from "../types/tasks";
+import type { Workspace, WorkspaceInput, WorkspaceState } from "../types/workspaces";
 
 export const flowdeskApi = {
   dashboard: () => invoke<DashboardSummary>("get_dashboard_summary"),
@@ -50,8 +60,9 @@ export const flowdeskApi = {
   deleteSubtask: (subtaskId: string) => invoke<TaskDetail>("delete_subtask", { subtaskId }),
   linkTaskNote: (taskId: string, noteId: string, linked: boolean) =>
     invoke<TaskDetail>("link_task_note", { taskId, noteId, linked }),
-  projects: (includeArchived = false) =>
-    invoke<ProjectSummary[]>("list_projects", { includeArchived }),
+  /** Proyectos del espacio activo, o de todos con `allWorkspaces`. */
+  projects: (includeArchived = false, allWorkspaces = false) =>
+    invoke<ProjectSummary[]>("list_projects", { includeArchived, allWorkspaces }),
   project: (projectId: string) => invoke<ProjectSummary>("get_project", { projectId }),
   createProject: (input: ProjectInput) => invoke<ProjectSummary>("create_project", { input }),
   updateProject: (projectId: string, input: ProjectInput) =>
@@ -79,7 +90,53 @@ export const flowdeskApi = {
   updateTimeEntry: (entryId: string, input: EntryInput) =>
     invoke<TimerSnapshot>("update_time_entry", { entryId, input }),
   deleteTimeEntry: (entryId: string) => invoke<TimerSnapshot>("delete_time_entry", { entryId }),
-  openMain: (section?: "dashboard" | "tasks" | "projects" | "notes" | "focus" | "time" | "calendar" | "settings") =>
+  calendar: (start: number, end: number) => invoke<CalendarRange>("list_calendar", { start, end }),
+  createEvent: (input: EventInput) => invoke<CalendarEvent>("create_event", { input }),
+  updateEvent: (eventId: string, input: EventInput) =>
+    invoke<CalendarEvent>("update_event", { eventId, input }),
+  deleteEvent: (eventId: string) => invoke<void>("delete_event", { eventId }),
+  reminderSettings: () => invoke<ReminderSettings>("get_reminder_settings"),
+  updateReminderSettings: (settings: ReminderSettings) =>
+    invoke<ReminderSettings>("update_reminder_settings", { settings }),
+  reminders: () => invoke<ReminderItem[]>("list_reminders"),
+  workspaces: () => invoke<WorkspaceState>("get_workspaces"),
+  setActiveWorkspace: (workspaceId: string | null) =>
+    invoke<WorkspaceState>("set_active_workspace", { workspaceId }),
+  createWorkspace: (input: WorkspaceInput) => invoke<Workspace>("create_workspace", { input }),
+  updateWorkspace: (workspaceId: string, input: WorkspaceInput) =>
+    invoke<Workspace>("update_workspace", { workspaceId, input }),
+  archiveWorkspace: (workspaceId: string, archived: boolean) =>
+    invoke<Workspace>("archive_workspace", { workspaceId, archived }),
+  deleteWorkspace: (workspaceId: string) => invoke<void>("delete_workspace", { workspaceId }),
+  setWorkspaceProjects: (workspaceId: string, projectIds: string[]) =>
+    invoke<Workspace>("set_workspace_projects", { workspaceId, projectIds }),
+  setWorkspaceNotes: (workspaceId: string, noteIds: string[]) =>
+    invoke<Workspace>("set_workspace_notes", { workspaceId, noteIds }),
+  addWorkspaceResource: (workspaceId: string, kind: "folder" | "app", path: string) =>
+    invoke<Workspace>("add_workspace_resource", { workspaceId, kind, path }),
+  removeWorkspaceResource: (resourceId: string) =>
+    invoke<void>("remove_workspace_resource", { resourceId }),
+  openWorkspaceResources: (workspaceId: string, resourceId?: string) =>
+    invoke<void>("open_workspace_resources", { workspaceId, resourceId: resourceId ?? null }),
+  clipboardSettings: () => invoke<ClipboardSettings>("get_clipboard_settings"),
+  updateClipboardSettings: (settings: ClipboardSettings) =>
+    invoke<ClipboardSettings>("update_clipboard_settings", { settings }),
+  clipboard: (search: string, favoritesOnly: boolean) =>
+    invoke<ClipboardItem[]>("list_clipboard", { search: search || null, favoritesOnly }),
+  copyClipboardItem: (itemId: string) => invoke<void>("copy_clipboard_item", { itemId }),
+  setClipboardFavorite: (itemId: string, favorite: boolean) =>
+    invoke<void>("set_clipboard_favorite", { itemId, favorite }),
+  deleteClipboardItem: (itemId: string) => invoke<void>("delete_clipboard_item", { itemId }),
+  clearClipboard: () => invoke<void>("clear_clipboard"),
+  clipboardImage: (itemId: string) => invoke<ArrayBuffer>("get_clipboard_image", { itemId }),
+  excludeClipboardApp: (path: string) => invoke<ClipboardSettings>("exclude_clipboard_app", { path }),
+  appTrackingSettings: () => invoke<AppTrackingSettings>("get_app_tracking_settings"),
+  updateAppTrackingSettings: (settings: AppTrackingSettings) =>
+    invoke<AppTrackingSettings>("update_app_tracking_settings", { settings }),
+  appUsage: () => invoke<AppUsageReport>("get_app_usage"),
+  excludeTrackingApp: (path: string) => invoke<AppTrackingSettings>("exclude_tracking_app", { path }),
+  clearAppTracking: () => invoke<void>("clear_app_tracking"),
+  openMain: (section?: "dashboard" | "tasks" | "projects" | "notes" | "focus" | "time" | "calendar" | "workspaces" | "clipboard" | "settings") =>
     invoke<void>("open_main_window", { section: section ?? null }),
   hideTrayPanel: () => invoke<void>("hide_tray_panel"),
   quit: () => invoke<void>("quit_flowdesk"),
@@ -89,8 +146,8 @@ export const flowdeskApi = {
     invoke<TrayPreferences>("update_tray_preferences", preferences),
   createNote: () => invoke<Note>("create_note"),
   note: (noteId: string) => invoke<Note>("get_note", { noteId }),
-  notes: (includeArchived = false) =>
-    invoke<Note[]>("list_notes", { includeArchived }),
+  notes: (includeArchived = false, allWorkspaces = false) =>
+    invoke<Note[]>("list_notes", { includeArchived, allWorkspaces }),
   updateNote: (note: Pick<Note, "id" | "title" | "content" | "color" | "reminderAt" | "projectId"> & { opacity: number; fontSize: number }) =>
     invoke<Note>("update_note", {
       input: {

@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "dialogs",
+  "description": "Solo el dashboard abre el selector de macOS para añadir carpetas y aplicaciones a un espacio.",
+  "windows": ["main"],
+  "permissions": [
+    "dialog:allow-open"
+  ]
+}

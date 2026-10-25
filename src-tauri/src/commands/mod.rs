@@ -1,7 +1,12 @@
+pub mod app_tracking;
+pub mod calendar;
+pub mod clipboard;
 pub mod dashboard;
 pub mod focus;
 pub mod lifecycle;
 pub mod notes;
 pub mod preferences;
 pub mod projects;
+pub mod reminders;
 pub mod tasks;
+pub mod workspaces;

@@ -3,6 +3,7 @@ import { CalendarRange, Clock3, Pause, Play, RotateCw, Square, Target, Timer } f
 import { MetricCard } from "../components/MetricCard";
 import { WorkContextPicker, type WorkSelection } from "../features/focus/WorkContextPicker";
 import { formatClock, useLiveTimer, useTimer } from "../features/focus/useTimer";
+import { AppUsagePanel } from "../features/time/AppUsagePanel";
 import { EntriesList } from "../features/time/EntriesList";
 import { ProjectTimeBars } from "../features/time/ProjectTimeBars";
 import { WeeklyChart } from "../features/time/WeeklyChart";
@@ -122,6 +123,8 @@ export function TimePage() {
             </div>
           </>
         )}
+
+        <AppUsagePanel />
 
         <EntriesList entries={entries} range={range} onRangeChange={setRange} liveEntry={entry ? { id: entry.id, elapsed: live.entryElapsed } : null} />
       </div>

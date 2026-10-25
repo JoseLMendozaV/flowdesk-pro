@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { Download, Keyboard, LoaderCircle, Power, X } from "lucide-react";
+import { Bell, Download, Keyboard, LoaderCircle, Power, X } from "lucide-react";
+import { minutesLabel } from "../calendar/calendarDates";
 import { useUpdateStore } from "../updates/updateStore";
 import { flowdeskApi } from "../../services/flowdeskApi";
 import { useAppStore } from "../../stores/appStore";
+import type { ReminderSettings } from "../../types/calendar";
 import type { ShortcutStatus, TrayPreferences } from "../../types/dashboard";
 
 const initialPreferences: TrayPreferences = {
@@ -56,6 +58,79 @@ function UpdatesSection() {
         </span>
         <input type="checkbox" checked={autoCheck} onChange={(event) => setAutoCheck(event.target.checked)} className="size-4 accent-[var(--accent)]" />
       </label>
+    </div>
+  );
+}
+
+const leadOptions = [0, 5, 10, 15, 30, 60, 120, 1440];
+
+function parseClock(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+/** Se guarda con cada cambio, como las actualizaciones: no depende del botón Guardar. */
+function RemindersSection() {
+  const [settings, setSettings] = useState<ReminderSettings | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void flowdeskApi.reminderSettings().then(setSettings).catch((reason) => setError(String(reason)));
+  }, []);
+  if (!settings) return error ? <p className="text-[10px] text-red-500">{error}</p> : null;
+
+  async function change(changes: Partial<ReminderSettings>) {
+    if (!settings) return;
+    const next = { ...settings, ...changes };
+    setSettings(next);
+    try {
+      setSettings(await flowdeskApi.updateReminderSettings(next));
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }
+
+  const timeClass = "rounded-md border border-[var(--line)] bg-[var(--surface)] px-1.5 py-0.5 text-[11px] disabled:opacity-50";
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] p-3.5">
+      <label className="flex cursor-pointer items-center gap-3">
+        <span className="grid size-8 place-items-center rounded-lg bg-amber-500/10 text-amber-500"><Bell className="size-4" /></span>
+        <span className="min-w-0 flex-1">
+          <strong className="block text-xs font-medium">Recordatorios</strong>
+          <small className="mt-0.5 block text-[10px] leading-4 text-[var(--muted)]">Tareas con hora, eventos y notas. Funcionan con el dashboard cerrado.</small>
+        </span>
+        <input type="checkbox" checked={settings.enabled} onChange={(event) => void change({ enabled: event.target.checked })} className="size-4 accent-[var(--accent)]" />
+      </label>
+      <div className={`mt-2.5 space-y-2 border-t border-[var(--line)] pt-2.5 text-[11px] ${settings.enabled ? "" : "pointer-events-none opacity-50"}`}>
+        <label className="flex items-center justify-between gap-3">
+          Avisar de las tareas con hora
+          <select value={settings.taskLeadMinutes} onChange={(event) => void change({ taskLeadMinutes: Number(event.target.value) })} className={timeClass}>
+            {leadOptions.map((minutes) => (
+              <option key={minutes} value={minutes}>{minutes === 0 ? "A la hora" : minutes < 60 ? `${minutes} min antes` : minutes === 1440 ? "1 día antes" : `${minutes / 60} h antes`}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2">
+            <input type="checkbox" checked={settings.dailyDigest} onChange={(event) => void change({ dailyDigest: event.target.checked })} className="accent-[var(--accent)]" />
+            Resumen diario de tareas pendientes
+          </span>
+          <input type="time" value={minutesLabel(settings.digestMinute)} disabled={!settings.dailyDigest} onChange={(event) => event.target.value && void change({ digestMinute: parseClock(event.target.value) })} className={timeClass} />
+        </label>
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex cursor-pointer items-center gap-2">
+            <input type="checkbox" checked={settings.quietHours} onChange={(event) => void change({ quietHours: event.target.checked })} className="accent-[var(--accent)]" />
+            Silencio de
+          </label>
+          <span className="flex items-center gap-1.5">
+            <input type="time" aria-label="Inicio del silencio" value={minutesLabel(settings.quietStart)} disabled={!settings.quietHours} onChange={(event) => event.target.value && void change({ quietStart: parseClock(event.target.value) })} className={timeClass} />
+            a
+            <input type="time" aria-label="Fin del silencio" value={minutesLabel(settings.quietEnd)} disabled={!settings.quietHours} onChange={(event) => event.target.value && void change({ quietEnd: parseClock(event.target.value) })} className={timeClass} />
+          </span>
+        </div>
+        <p className="text-[10px] leading-4 text-[var(--muted)]">Durante el silencio los avisos no se muestran; quedan en la lista de recordatorios del inicio. Los que se pierden con la app cerrada más de 6 horas no se repiten.</p>
+      </div>
+      {error && <p className="mt-2 text-[10px] text-red-500">{error}</p>}
     </div>
   );
 }
@@ -154,6 +229,8 @@ export function PreferencesDialog() {
                 className="size-4 accent-[var(--accent)]"
               />
             </label>
+
+            <RemindersSection />
 
             <UpdatesSection />
 

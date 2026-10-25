@@ -87,6 +87,12 @@ export function timestampFromInputs(date: string, time: string): { dueAt: number
   };
 }
 
+/** "Hoy · 10:00", o "Hoy · Todo el día" para eventos sin hora. */
+export function describeEventStart(startsAt: number, isAllDay: boolean) {
+  const label = describeDue(startsAt, !isAllDay).label;
+  return isAllDay ? `${label} · Todo el día` : label;
+}
+
 export function errorMessage(reason: unknown) {
   return reason instanceof Error ? reason.message : String(reason);
 }

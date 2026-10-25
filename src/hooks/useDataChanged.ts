@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { isWindowVisible, subscribeVisibility } from "./useWindowVisible";
 
-export type DataKind = "tasks" | "projects" | "notes" | "time";
+export type DataKind = "tasks" | "projects" | "notes" | "time" | "calendar" | "reminders" | "workspaces" | "clipboard" | "app-usage";
 
 /**
  * Ejecuta `callback` cuando Rust informa de cambios persistidos en alguno de los tipos

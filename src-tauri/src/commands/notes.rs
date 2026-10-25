@@ -1,4 +1,5 @@
 use crate::{
+    commands::workspaces::{active_workspace, note_scope},
     database::Database,
     models::{Note, NoteWindow},
     windows::notes as note_windows,
@@ -91,6 +92,12 @@ fn insert_note(database: &Database) -> Result<Note, String> {
              VALUES (?1, 'always_on_top', 1, ?2)",
             params![id, now],
         )?;
+        // Una nota creada con un espacio activo pertenece a él.
+        transaction.execute(
+            "INSERT INTO workspace_notes(workspace_id, note_id)
+             SELECT ?1, ?2 WHERE ?1 IS NOT NULL",
+            params![active_workspace(&transaction)?, id],
+        )?;
         let note = query_note(&transaction, &id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
         transaction.commit()?;
         Ok(note)
@@ -101,13 +108,7 @@ pub fn create_note_and_window(app: &AppHandle) -> Result<Note, String> {
     let database = app.state::<Database>();
     let note = insert_note(&database)?;
     if let Err(error) = note_windows::open(app, &note) {
-        let _ = database.with_connection(|connection| {
-            connection.execute(
-                "UPDATE note_windows SET is_visible = 0 WHERE note_id = ?1",
-                [&note.id],
-            )?;
-            Ok(())
-        });
+        mark_hidden(&database, &note.id);
         return Err(error);
     }
     // En modo accesorio la app no está activa: el foco explícito la activa para escribir ya.
@@ -118,28 +119,79 @@ pub fn create_note_and_window(app: &AppHandle) -> Result<Note, String> {
     Ok(note)
 }
 
+/// Notas que el usuario dejó abiertas y que corresponden al espacio activo.
+fn displayable_notes(connection: &Connection) -> rusqlite::Result<Vec<Note>> {
+    let workspace_id = active_workspace(connection)?;
+    connection
+        .prepare(&format!(
+            "{NOTE_SELECT} WHERE n.is_archived = 0 AND w.is_visible = 1 AND {}
+             ORDER BY n.updated_at DESC",
+            note_scope("n", "?1")
+        ))?
+        .query_map([workspace_id], map_note)?
+        .collect()
+}
+
+fn mark_hidden(database: &Database, note_id: &str) {
+    let _ = database.with_connection(|connection| {
+        connection.execute(
+            "UPDATE note_windows SET is_visible = 0 WHERE note_id = ?1",
+            [note_id],
+        )?;
+        Ok(())
+    });
+}
+
 pub fn restore_visible(app: &AppHandle, database: &Database) {
     let notes = database
-        .with_connection(|connection| {
-            let mut statement = connection.prepare(&format!(
-                "{NOTE_SELECT} WHERE n.is_archived = 0 AND w.is_visible = 1
-                 ORDER BY n.updated_at DESC"
-            ))?;
-            statement
-                .query_map([], map_note)?
-                .collect::<Result<Vec<_>, _>>()
-        })
+        .with_connection(displayable_notes)
         .unwrap_or_default();
     for note in notes {
         if note_windows::open(app, &note).is_err() {
-            let _ = database.with_connection(|connection| {
-                connection.execute(
-                    "UPDATE note_windows SET is_visible = 0 WHERE note_id = ?1",
-                    [&note.id],
-                )?;
-                Ok(())
-            });
+            mark_hidden(database, &note.id);
         }
+    }
+}
+
+/// Al cambiar de espacio: muestra sus notas abiertas y oculta las de otros espacios
+/// sin cambiar `is_visible`, para recuperarlas al volver.
+pub fn apply_workspace_windows(app: &AppHandle, database: &Database) {
+    let notes = database
+        .with_connection(displayable_notes)
+        .unwrap_or_default();
+    let shown: Vec<String> = notes
+        .iter()
+        .map(|note| note_windows::label(&note.id))
+        .collect();
+    // Mostrar una nota la convierte en ventana clave; el foco vuelve después a la
+    // ventana desde la que se cambió de espacio (dashboard o panel).
+    let focused = app
+        .webview_windows()
+        .into_values()
+        .find(|window| window.is_focused().unwrap_or(false));
+    for (window_label, window) in app.webview_windows() {
+        if let Some(note_id) = window_label.strip_prefix("note-")
+            && !shown.contains(&window_label)
+            && window.is_visible().unwrap_or(false)
+        {
+            let _ = note_windows::persist_geometry(app, note_id, &window);
+            let _ = window.hide();
+        }
+    }
+    for note in notes {
+        match app.get_webview_window(&note_windows::label(&note.id)) {
+            Some(window) => {
+                let _ = window.show();
+            }
+            None => {
+                if note_windows::open(app, &note).is_err() {
+                    mark_hidden(database, &note.id);
+                }
+            }
+        }
+    }
+    if let Some(window) = focused {
+        let _ = window.set_focus();
     }
 }
 
@@ -156,17 +208,28 @@ pub fn get_note(note_id: String, database: State<'_, Database>) -> Result<Note, 
 #[tauri::command]
 pub fn list_notes(
     include_archived: bool,
+    all_workspaces: Option<bool>,
     database: State<'_, Database>,
 ) -> Result<Vec<Note>, String> {
     database.with_connection(|connection| {
-        let sql = if include_archived {
-            format!("{NOTE_SELECT} ORDER BY n.updated_at DESC")
+        let archived = if include_archived {
+            "1"
         } else {
-            format!("{NOTE_SELECT} WHERE n.is_archived = 0 ORDER BY n.updated_at DESC")
+            "n.is_archived = 0"
         };
-        let mut statement = connection.prepare(&sql)?;
+        let mut statement = connection.prepare(&format!(
+            "{NOTE_SELECT} WHERE {archived} AND {} ORDER BY n.updated_at DESC",
+            note_scope("n", "?1")
+        ))?;
         statement
-            .query_map([], map_note)?
+            .query_map(
+                [if all_workspaces.unwrap_or(false) {
+                    None
+                } else {
+                    active_workspace(connection)?
+                }],
+                map_note,
+            )?
             .collect::<Result<Vec<_>, _>>()
     })
 }

@@ -1,5 +1,8 @@
 use crate::{
-    commands::dashboard::today_bounds,
+    commands::{
+        dashboard::today_bounds,
+        workspaces::{active_workspace, active_workspace_id, task_scope},
+    },
     database::Database,
     models::{
         LinkedNote, Subtask, Tag, TaskDetail, TaskFilter, TaskInput, TaskSort, TaskSummary,
@@ -308,10 +311,13 @@ pub fn insert_task(database: &Database, input: TaskInput) -> Result<TaskDetail, 
     let completed_at = (task.status == "completed").then_some(now);
     database.with_connection_mut(|connection| {
         let transaction = connection.transaction()?;
+        // Una tarea creada con un espacio activo pertenece a él.
+        let workspace_id = active_workspace(&transaction)?;
         transaction.execute(
             "INSERT INTO tasks(id, title, description, status, priority, project_id,
-                estimated_minutes, due_at, due_has_time, completed_at, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
+                estimated_minutes, due_at, due_has_time, completed_at, created_at, updated_at,
+                workspace_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12)",
             params![
                 id,
                 task.title,
@@ -323,7 +329,8 @@ pub fn insert_task(database: &Database, input: TaskInput) -> Result<TaskDetail, 
                 task.due_at,
                 task.due_has_time,
                 completed_at,
-                now
+                now,
+                workspace_id
             ],
         )?;
         sync_tags(&transaction, &id, &task.tags)?;
@@ -419,6 +426,7 @@ fn escape_like(value: &str) -> String {
 
 pub fn query_tasks(database: &Database, filter: TaskFilter) -> Result<Vec<TaskSummary>, String> {
     let (today_start, tomorrow_start) = today_bounds()?;
+    let workspace_scope = task_scope("t", "?");
     let mut conditions: Vec<&str> = Vec::new();
     let mut values: Vec<Value> = Vec::new();
 
@@ -489,6 +497,11 @@ pub fn query_tasks(database: &Database, filter: TaskFilter) -> Result<Vec<TaskSu
         );
         let pattern = format!("%{}%", escape_like(search));
         values.extend(std::iter::repeat_n(Value::Text(pattern), 3));
+    }
+
+    if let Some(workspace_id) = active_workspace_id(database)? {
+        conditions.push(&workspace_scope);
+        values.extend(std::iter::repeat_n(Value::Text(workspace_id), 2));
     }
 
     let order = if filter.view == TaskView::Completed {

@@ -25,13 +25,17 @@ SQLite es la única fuente principal. Cuando se implemente WidgetKit, Rust expor
 
 Las consultas usan parámetros. Las eliminaciones y relaciones se expresan mediante claves foráneas con reglas `CASCADE` o `SET NULL` según la propiedad de los datos. Los filtros de tareas se construyen con fragmentos SQL fijos y valores enlazados; la búsqueda escapa `%`, `_` y `\`.
 
-Reglas de eliminación:
+Reglas de eliminación (los recordatorios se borran con su entidad mediante disparadores):
 
 - Tarea: borra sus subtareas, etiquetas asignadas y vínculos con notas; sesiones y registros de tiempo quedan sin tarea. Las etiquetas sin uso se eliminan.
 - Proyecto: el usuario elige conservar las tareas (`SET NULL`) o borrarlas. Notas, sesiones y registros de tiempo nunca se borran. Archivar (`archived_at`) es la alternativa no destructiva y conserva el estado previo.
 - Nota: borra su ventana y sus vínculos con tareas; las tareas se conservan.
 
-Las ventanas comunican cambios mediante el evento `flowdesk://data-changed` con el tipo afectado (`tasks`, `projects`, `notes`); cada vista vuelve a consultar solo lo que muestra.
+Las ventanas comunican cambios mediante el evento `flowdesk://data-changed` con el tipo afectado (`tasks`, `projects`, `notes`, `time`, `calendar`, `reminders`, `workspaces`, `clipboard`, `app-usage`); cada vista vuelve a consultar solo lo que muestra. El servicio de recordatorios escucha el mismo evento en Rust.
+
+### Espacios de trabajo
+
+El espacio activo (`settings.selected_workspace_id`) se aplica en Rust a cada consulta mediante los fragmentos de `commands/workspaces.rs`: tareas del espacio o de sus proyectos, proyectos vinculados, notas del espacio, de sus proyectos o sin espacio, y eventos de sus proyectos o sin proyecto. Recordatorios y estadísticas de tiempo no se filtran. Lo creado con un espacio activo queda vinculado a él; nada se duplica.
 
 ## Ciclo de vida
 
@@ -45,6 +49,14 @@ La ventana principal nace invisible para evitar destellos. En un inicio normal R
 
 `src-tauri/src/background/` contiene lo que debe seguir funcionando sin ventanas. El servicio de temporizadores mide con el reloj de actividad del sistema (no avanza en reposo ni con cambios de hora) y detecta el reposo comparándolo con el reloj continuo. Su hilo despierta solo cuando hace falta y comunica los cambios con `flowdesk://timer-changed`. Las ventanas solo muestran ese estado.
 
+Además del temporizador hay tres hilos, todos con la señal común `Wakeup` para despertar sin sondear cuando cambian datos o preferencias:
+
+- `flowdesk-reminders`: deriva los avisos de tareas, notas y eventos y los entrega; duerme hasta el siguiente aviso, como mucho 60 s.
+- `flowdesk-clipboard`: con consentimiento, compara `NSPasteboard.changeCount` cada segundo; si no, duerme indefinidamente.
+- `flowdesk-app-tracking`: con consentimiento, una muestra cada 5 s de la app en primer plano y la inactividad; si no, duerme indefinidamente.
+
+Las consultas a macOS que comparten (app en primer plano, inactividad, información de un `.app`) están en `background/macos.rs` y no requieren permisos de accesibilidad.
+
 Las ventanas ocultas no repintan: Rust anuncia `flowdesk://visibility` y `useDataChanged` y los hooks del temporizador aplazan sus actualizaciones hasta que la ventana vuelve a verse. Sin esto, WebKit mantiene un display link activo en páginas ocultas (ver `docs/PHASE_05.md`).
 
 ## Notas flotantes
@@ -57,4 +69,4 @@ Los niveles disponibles son normal, siempre encima y siempre debajo. El último 
 
 ## Seguridad
 
-La capability inicial se limita a `core:default`. La política CSP restringe recursos a la aplicación y a los canales IPC/asset de Tauri. Cada módulo futuro deberá declarar únicamente los permisos que necesite.
+La capability inicial se limita a `core:default`. Las ventanas de notas y la principal pueden moverse (`window-dragging`); solo la principal busca actualizaciones (`updates`) y abre el selector de archivos (`dialogs`). La política CSP restringe recursos a la aplicación y a los canales IPC/asset de Tauri. Cada módulo futuro deberá declarar únicamente los permisos que necesite.

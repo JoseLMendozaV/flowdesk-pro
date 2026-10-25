@@ -3,7 +3,6 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CheckSquare2,
-  ChevronDown,
   Clipboard,
   Clock3,
   Focus,
@@ -12,6 +11,8 @@ import {
   Settings,
   StickyNote,
 } from "lucide-react";
+import logo from "../assets/flowdesk-logo.png";
+import { WorkspaceSwitcher } from "../features/workspaces/WorkspaceSwitcher";
 import { useAppStore, type Section } from "../stores/appStore";
 
 const navigation = [
@@ -21,9 +22,9 @@ const navigation = [
   { id: "notes", label: "Notas", icon: StickyNote, enabled: true },
   { id: "focus", label: "Concentración", icon: Focus, enabled: true },
   { id: "time", label: "Tiempo", icon: Clock3, enabled: true },
-  { label: "Portapapeles", icon: Clipboard },
-  { label: "Calendario", icon: CalendarDays },
-  { label: "Espacios", icon: BriefcaseBusiness },
+  { id: "clipboard", label: "Portapapeles", icon: Clipboard, enabled: true },
+  { id: "calendar", label: "Calendario", icon: CalendarDays, enabled: true },
+  { id: "workspaces", label: "Espacios", icon: BriefcaseBusiness, enabled: true },
   { label: "IA local", icon: Bot },
 ];
 
@@ -35,24 +36,14 @@ export function Sidebar() {
     // La franja superior y los huecos de la barra lateral mueven la ventana, como una barra de título.
     <aside data-tauri-drag-region className="flex h-full flex-col border-r border-[var(--line)] bg-[var(--sidebar)] px-3 pb-3 pt-12">
       <div data-tauri-drag-region="deep" className="mb-5 flex items-center gap-2.5 px-2">
-        <div className="grid size-8 place-items-center rounded-[10px] bg-gradient-to-br from-[#6e8bff] to-[#806ce8] text-sm font-bold text-white shadow-[0_5px_18px_rgba(104,125,239,.32)]">
-          F
-        </div>
+        <img src={logo} alt="" className="size-8 drop-shadow-[0_4px_12px_rgba(104,125,239,.35)]" draggable={false} />
         <div>
           <div className="text-[13px] font-semibold tracking-[-0.01em]">FlowDesk Pro</div>
           <div className="text-[10px] text-[var(--muted)]">Productividad local</div>
         </div>
       </div>
 
-      <button
-        className="mb-4 flex w-full items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-2.5 py-2 text-left transition hover:border-[var(--line-strong)]"
-        type="button"
-        aria-label="Espacio de trabajo actual"
-      >
-        <span className="size-2 rounded-full bg-[#876ef0]" />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">Todos los espacios</span>
-        <ChevronDown className="size-3.5 text-[var(--muted)]" />
-      </button>
+      <WorkspaceSwitcher />
 
       <nav aria-label="Navegación principal" className="space-y-0.5">
         {navigation.map(({ id, label, icon: Icon, enabled }) => {

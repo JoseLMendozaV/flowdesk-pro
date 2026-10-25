@@ -75,7 +75,7 @@ export function FloatingNote({ noteId }: { noteId: string }) {
 
   useEffect(() => {
     if (!settingsOpen) return;
-    void flowdeskApi.projects(false).then(setProjects).catch(() => setProjects([]));
+    void flowdeskApi.projects(false, true).then(setProjects).catch(() => setProjects([]));
   }, [settingsOpen]);
 
   const save = useCallback(async (value: Note) => {

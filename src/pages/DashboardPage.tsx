@@ -1,6 +1,8 @@
 import {
   AlertCircle,
   ArrowRight,
+  Bell,
+  BellOff,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -15,22 +17,18 @@ import {
   Timer,
 } from "lucide-react";
 import { MetricCard } from "../components/MetricCard";
+import { useReminders } from "../features/calendar/useReminders";
 import { CompactTimer } from "../features/focus/CompactTimer";
 import { useDashboard } from "../features/dashboard/useDashboard";
 import { useAppStore } from "../stores/appStore";
 import { flowdeskApi } from "../services/flowdeskApi";
-import { describeDue, formatDuration } from "../services/format";
+import { describeDue, describeEventStart, formatDuration } from "../services/format";
 import type { DashboardSummary } from "../types/dashboard";
 
 const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   weekday: "long",
   day: "numeric",
   month: "long",
-});
-
-const timeFormatter = new Intl.DateTimeFormat("es-ES", {
-  hour: "2-digit",
-  minute: "2-digit",
 });
 
 function greeting(date: Date) {
@@ -213,6 +211,33 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
   );
 }
 
+const reminderKinds = { task: "Tarea", note: "Nota", event: "Evento" } as const;
+
+function RemindersList() {
+  const reminders = useReminders();
+  if (reminders.length === 0) return <EmptyState>Sin recordatorios en los próximos 7 días.</EmptyState>;
+  return (
+    <ul className="space-y-1.5">
+      {reminders.slice(0, 6).map((reminder) => {
+        const due = describeDue(reminder.remindAt, true);
+        const past = reminder.status !== "scheduled";
+        return (
+          <li key={reminder.id} className={`flex items-start gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 ${past ? "opacity-60" : ""}`}>
+            {reminder.status === "silenced" ? <BellOff className="mt-0.5 size-3 flex-none text-[var(--muted)]" /> : <Bell className={`mt-0.5 size-3 flex-none ${past ? "text-[var(--muted)]" : "text-amber-500"}`} />}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[11px] font-medium">{reminder.title || "Nota sin título"}</span>
+              <span className="block text-[9px] text-[var(--muted)]">
+                {reminderKinds[reminder.entityType]} · {due.label}
+                {reminder.status === "silenced" && " · silenciado"}
+              </span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function RightPanel({ data }: { data: DashboardSummary }) {
   const selectSection = useAppStore((state) => state.selectSection);
   return (
@@ -223,15 +248,23 @@ function RightPanel({ data }: { data: DashboardSummary }) {
           <h2 className="text-xs font-semibold">Próximo compromiso</h2>
         </div>
         {data.nextEvent ? (
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+          <button type="button" onClick={() => selectSection("calendar")} className="block w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-left hover:border-[var(--line-strong)]">
             <p className="text-xs font-medium">{data.nextEvent.title}</p>
             <time className="mt-1 block text-[10px] text-[var(--muted)]">
-              {timeFormatter.format(new Date(data.nextEvent.startsAt * 1000))}
+              {describeEventStart(data.nextEvent.startsAt, data.nextEvent.isAllDay)}
             </time>
-          </div>
+          </button>
         ) : (
           <EmptyState>Tu agenda no tiene compromisos próximos.</EmptyState>
         )}
+      </section>
+
+      <section className="mt-6">
+        <div className="mb-3 flex items-center gap-2">
+          <Bell className="size-3.5 text-amber-500" />
+          <h2 className="text-xs font-semibold">Recordatorios</h2>
+        </div>
+        <RemindersList />
       </section>
 
       <section className="mt-6">

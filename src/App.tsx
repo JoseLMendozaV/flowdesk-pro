@@ -6,9 +6,12 @@ import { TrayPanel } from "./features/tray/TrayPanel";
 import { FloatingNote } from "./features/notes/FloatingNote";
 import { useDataChanged } from "./hooks/useDataChanged";
 import { AppShell } from "./layouts/AppShell";
+import { CalendarPage } from "./pages/CalendarPage";
+import { ClipboardPage } from "./pages/ClipboardPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { FocusPage } from "./pages/FocusPage";
 import { TimePage } from "./pages/TimePage";
+import { WorkspacesPage } from "./pages/WorkspacesPage";
 import { NotesPage } from "./pages/NotesPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { TasksPage } from "./pages/TasksPage";
@@ -45,6 +48,9 @@ function MainApplication() {
       if (event.payload === "projects") selectSection("projects");
       if (event.payload === "focus") selectSection("focus");
       if (event.payload === "time") selectSection("time");
+      if (event.payload === "calendar") selectSection("calendar");
+      if (event.payload === "workspaces") selectSection("workspaces");
+      if (event.payload === "clipboard") selectSection("clipboard");
     });
     const refresh = Promise.all([listen("flowdesk://activated", refreshDashboard)]);
     return () => {
@@ -53,7 +59,7 @@ function MainApplication() {
       void refresh.then((dispose) => dispose.forEach((callback) => callback()));
     };
   }, [openPreferences, openQuickTask, openTasks, refreshDashboard, selectSection]);
-  useDataChanged(["tasks", "projects", "notes", "time"], refreshDashboard);
+  useDataChanged(["tasks", "projects", "notes", "time", "calendar"], refreshDashboard);
 
   return (
     <>
@@ -68,6 +74,12 @@ function MainApplication() {
           <FocusPage />
         ) : selectedSection === "time" ? (
           <TimePage />
+        ) : selectedSection === "calendar" ? (
+          <CalendarPage />
+        ) : selectedSection === "workspaces" ? (
+          <WorkspacesPage />
+        ) : selectedSection === "clipboard" ? (
+          <ClipboardPage />
         ) : (
           <DashboardPage />
         )}

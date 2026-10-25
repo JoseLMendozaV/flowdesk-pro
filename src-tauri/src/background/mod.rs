@@ -1,11 +1,18 @@
 //! Servicios que siguen funcionando con todas las ventanas ocultas.
 
+pub mod app_tracking;
+pub mod clipboard;
 pub mod clock;
+#[cfg(target_os = "macos")]
+pub mod macos;
+pub mod reminders;
 pub mod timer;
+pub mod wakeup;
 
 use crate::{database::Database, models::TimerSnapshot, tray};
+use reminders::{LocalMoment, ReminderService};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_notification::NotificationExt;
 pub use timer::{CompletedSession, TimerService};
 
@@ -135,5 +142,137 @@ pub fn spawn_ticker(app: AppHandle) {
         });
     if let Err(error) = spawned {
         eprintln!("No se pudo iniciar el servicio de temporizadores: {error}");
+    }
+}
+
+/// Hilo de recordatorios. Despierta al cambiar tareas, notas o eventos, y como
+/// mucho cada 60 s para notar el reposo, los cambios de hora y el resumen diario.
+pub fn spawn_reminders(app: AppHandle) {
+    let listener = app.clone();
+    app.listen_any("flowdesk://data-changed", move |event| {
+        if matches!(event.payload(), "\"tasks\"" | "\"notes\"" | "\"calendar\"") {
+            listener.state::<ReminderService>().wakeup.wake();
+        }
+    });
+    let spawned = std::thread::Builder::new()
+        .name("flowdesk-reminders".to_string())
+        .spawn(move || {
+            let mut dirty = true;
+            loop {
+                let service = app.state::<ReminderService>();
+                let database = app.state::<Database>();
+                let settings = database
+                    .with_connection(reminders::load_settings)
+                    .unwrap_or_default();
+                let moment = LocalMoment::current();
+                if dirty {
+                    let _ = database.with_connection_mut(|connection| {
+                        reminders::reconcile(connection, &settings, moment.now)
+                    });
+                }
+                let mut notices =
+                    reminders::collect_due(&database, &settings, &moment).unwrap_or_default();
+                if let Ok(Some(digest)) = reminders::collect_digest(&database, &settings, &moment) {
+                    notices.push(digest);
+                }
+                if dirty || !notices.is_empty() {
+                    let _ = app.emit("flowdesk://data-changed", "reminders");
+                }
+                for notice in notices {
+                    notify(&app, &notice.title, &notice.body);
+                }
+                dirty = service
+                    .wakeup
+                    .wait(Some(reminders::next_wait(&database, moment.now)));
+            }
+        });
+    if let Err(error) = spawned {
+        eprintln!("No se pudo iniciar el servicio de recordatorios: {error}");
+    }
+}
+
+/// Hilo del portapapeles: compara `changeCount` cada segundo solo con consentimiento
+/// y sin pausa; en otro caso duerme hasta que cambian las preferencias.
+pub fn spawn_clipboard(app: AppHandle) {
+    let spawned = std::thread::Builder::new()
+        .name("flowdesk-clipboard".to_string())
+        .spawn(move || {
+            loop {
+                let service = app.state::<clipboard::ClipboardService>();
+                let database = app.state::<Database>();
+                let settings = database
+                    .with_connection(clipboard::load_settings)
+                    .unwrap_or_default();
+                if !settings.enabled || settings.paused || cfg!(not(target_os = "macos")) {
+                    service.forget();
+                    service.wakeup.wait(None);
+                    continue;
+                }
+                #[cfg(target_os = "macos")]
+                if service.observe(clipboard::pasteboard::change_count())
+                    && let Some(clip) = clipboard::pasteboard::read(settings.capture_images)
+                    && let Ok(clipboard::Capture::Stored) = clipboard::capture(
+                        &database,
+                        &service.images_dir,
+                        &settings,
+                        clip,
+                        chrono::Utc::now().timestamp(),
+                    )
+                {
+                    let _ = app.emit("flowdesk://data-changed", "clipboard");
+                }
+                service.wakeup.wait(Some(clipboard::POLL_INTERVAL));
+            }
+        });
+    if let Err(error) = spawned {
+        eprintln!("No se pudo iniciar el servicio de portapapeles: {error}");
+    }
+}
+
+/// Hilo del seguimiento automático: una muestra cada 5 s con consentimiento y sin
+/// pausa; en otro caso duerme hasta que cambian las preferencias.
+pub fn spawn_app_tracking(app: AppHandle) {
+    let spawned = std::thread::Builder::new()
+        .name("flowdesk-app-tracking".to_string())
+        .spawn(move || {
+            let mut last_prune = 0;
+            loop {
+                let service = app.state::<app_tracking::AppTrackingService>();
+                let database = app.state::<Database>();
+                let settings = database
+                    .with_connection(app_tracking::load_settings)
+                    .unwrap_or_default();
+                if !settings.enabled || settings.paused || cfg!(not(target_os = "macos")) {
+                    service.finish(&database);
+                    service.wakeup.wait(None);
+                    continue;
+                }
+                let now = chrono::Utc::now().timestamp();
+                if now - last_prune > 3_600 {
+                    let _ = app_tracking::prune(&database, settings.retention_days, now);
+                    last_prune = now;
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    let sample = app_tracking::Sample {
+                        now,
+                        app: macos::frontmost_app(),
+                        idle_seconds: macos::idle_seconds(),
+                    };
+                    let changed = service
+                        .tracker
+                        .lock()
+                        .ok()
+                        .and_then(|mut tracker| tracker.sample(&database, &settings, sample).ok())
+                        .unwrap_or(false);
+                    if changed {
+                        let _ = app.emit("flowdesk://data-changed", "app-usage");
+                    }
+                }
+                service.wakeup.wait(Some(app_tracking::SAMPLE_INTERVAL));
+            }
+        });
+    if let Err(error) = spawned {
+        eprintln!("No se pudo iniciar el seguimiento automático: {error}");
     }
 }

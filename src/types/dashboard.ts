@@ -19,6 +19,7 @@ export type UpcomingEvent = {
   id: string;
   title: string;
   startsAt: number;
+  isAllDay: boolean;
 };
 
 export type ActiveTimer = {

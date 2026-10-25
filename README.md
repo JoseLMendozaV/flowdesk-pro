@@ -4,7 +4,7 @@ Aplicación de productividad local para macOS construida con Tauri 2, Rust, Reac
 
 ## Estado actual
 
-Las Fases 1 a 5 están implementadas. Algunas integraciones de macOS conservan comprobaciones manuales pendientes:
+Las Fases 1 a 6 están implementadas. Algunas integraciones de macOS conservan comprobaciones manuales pendientes:
 
 - ventana principal con dashboard conectado a datos reales;
 - SQLite local con migración versionada, claves foráneas, índices y modo WAL;
@@ -23,12 +23,17 @@ Las Fases 1 a 5 están implementadas. Algunas integraciones de macOS conservan c
 - protección de instancia única;
 - restauración de tamaño y posición de la ventana principal;
 - inicio opcional con macOS mediante LaunchAgent y modo de inicio oculto;
+- calendario con vistas de día, semana y mes, eventos y fechas límite de tareas;
+- recordatorios de tareas, eventos y notas, resumen diario y horas de silencio, sin duplicados y resistentes al reposo;
+- espacios de trabajo que filtran tareas, proyectos, notas y agenda, y abren sus carpetas y apps;
+- historial del portapapeles opcional, con exclusiones y detección conservadora de credenciales;
+- seguimiento automático opcional del tiempo por aplicación, sin títulos de ventanas;
 - notas flotantes independientes con guardado automático, Markdown básico y restauración;
 - colores, transparencia, tamaño de texto, colapso y nivel de ventana por nota;
 - atajo global `Option + N` y conversión de texto seleccionado en tarea;
 - bundles `.app` y `.dmg` para Apple Silicon.
 
-Las vistas todavía no implementadas aparecen desactivadas de forma explícita; no contienen datos simulados.
+Solo la sección IA local (Fase 8) aparece desactivada de forma explícita; no hay datos simulados.
 
 ## Requisitos de desarrollo
 
@@ -102,7 +107,7 @@ El script sube la versión en `package.json`, `Cargo.toml`, `Cargo.lock` y `taur
 
 ## Datos locales
 
-La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas. La conexión activa:
+La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
 
 - `foreign_keys = ON`;
 - `journal_mode = WAL`;
@@ -126,5 +131,6 @@ No hay telemetría ni servicios remotos obligatorios.
 - [Estado de la Fase 3](docs/PHASE_03.md)
 - [Estado de la Fase 4 y correcciones de las Fases 1–3](docs/PHASE_04.md)
 - [Estado de la Fase 5](docs/PHASE_05.md)
+- [Estado de la Fase 6](docs/PHASE_06.md)
 
 Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/), [WidgetKit](https://developer.apple.com/documentation/widgetkit).

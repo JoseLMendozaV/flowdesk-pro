@@ -2,6 +2,7 @@ use crate::{background, commands::notes, models::TimerSnapshot, windows};
 use std::sync::Mutex;
 use tauri::{
     App, AppHandle, Emitter,
+    image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
@@ -121,9 +122,12 @@ pub fn create(app: &App) -> tauri::Result<()> {
             }
         });
 
-    if let Some(icon) = app.default_window_icon().cloned() {
-        builder = builder.icon(icon);
-    }
+    // Silueta de la «F» como plantilla: macOS la tiñe según el aspecto de la barra de menús.
+    builder = builder
+        .icon(Image::from_bytes(include_bytes!(
+            "../../icons/tray-template.png"
+        ))?)
+        .icon_as_template(true);
     builder.build(app)?;
     Ok(())
 }

@@ -7,6 +7,13 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (2, include_str!("../../migrations/0002_note_windows.sql")),
     (3, include_str!("../../migrations/0003_tasks_projects.sql")),
     (4, include_str!("../../migrations/0004_focus_time.sql")),
+    (
+        5,
+        include_str!("../../migrations/0005_calendar_reminders.sql"),
+    ),
+    (6, include_str!("../../migrations/0006_workspaces.sql")),
+    (7, include_str!("../../migrations/0007_clipboard.sql")),
+    (8, include_str!("../../migrations/0008_app_tracking.sql")),
 ];
 
 pub struct Database {
