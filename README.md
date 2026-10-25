@@ -72,7 +72,13 @@ src-tauri/target/release/bundle/dmg/FlowDesk Pro_0.1.0_aarch64.dmg
 
 Descarga el `.dmg` de la última versión en [Releases](https://github.com/JoseLMendozaV/flowdesk-pro/releases/latest) y arrastra FlowDesk Pro a Aplicaciones.
 
-La app no está firmada con un certificado Developer ID de Apple. La primera vez, macOS mostrará que no puede verificar al desarrollador: haz clic derecho sobre FlowDesk Pro en Aplicaciones, elige **Abrir** y confirma. Las actualizaciones posteriores se instalan desde la propia app.
+La app está firmada *ad hoc*, no con un certificado Developer ID de Apple, así que macOS no puede verificar al desarrollador la primera vez. En macOS 15 o posterior:
+
+1. Abre FlowDesk Pro desde Aplicaciones. macOS avisará de que no puede verificarla: pulsa **Hecho**.
+2. Ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta el mensaje sobre FlowDesk Pro y pulsa **Abrir igualmente**.
+3. Confirma con tu contraseña o Touch ID.
+
+Solo hace falta la primera vez. Las actualizaciones posteriores se instalan desde la propia app.
 
 ## Actualizaciones
 
