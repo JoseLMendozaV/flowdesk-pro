@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FlowDesk Pro",
+  "version": "0.1.0",
+  "identifier": "com.flowdesk.pro",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "FlowDesk Pro",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 1100,
+        "minHeight": 620,
+        "center": true,
+        "visible": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlCOTgyOUQzMTQ1Mjc5RjgKUldUNGVWSVUweW1ZbXoySDJic1ZQYzBaM2hFSGdlN2pKcERVQnBQYTMvUlZrd01GaXgwUGMzMWUK",
+      "endpoints": [
+        "https://github.com/JoseLMendozaV/flowdesk-pro/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

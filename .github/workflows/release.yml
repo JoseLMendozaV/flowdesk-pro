@@ -1,0 +1,65 @@
+# Publica una versión al empujar una etiqueta vX.Y.Z (ver scripts/release.sh).
+# Compila para Apple Silicon, firma los artefactos del actualizador y sube a
+# GitHub Releases el .dmg, el .app.tar.gz firmado y latest.json, que es lo que
+# consulta la app instalada para ofrecer "Actualizar".
+name: Publicar versión
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Notas de la versión (mensaje de la etiqueta)
+        id: notes
+        run: |
+          {
+            echo "body<<FLOWDESK_NOTES"
+            git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)'
+            echo "FLOWDESK_NOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: Comprobaciones
+        run: |
+          npm run check
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      - uses: tauri-apps/tauri-action@action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: FlowDesk Pro ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          args: --target aarch64-apple-darwin --bundles app,dmg

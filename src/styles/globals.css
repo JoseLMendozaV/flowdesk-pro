@@ -1,0 +1,253 @@
+@import "tailwindcss";
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  color-scheme: light dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --bg: #f6f7fb;
+  --bg-translucent: rgba(246, 247, 251, 0.86);
+  --sidebar: #f0f2f7;
+  --panel: #f2f3f8;
+  --surface: #ffffff;
+  --input: #fafbfe;
+  --inset: #f5f6fa;
+  --hover: rgba(60, 70, 110, 0.06);
+  --text: #20222a;
+  --muted: #7b8090;
+  --line: rgba(33, 39, 60, 0.09);
+  --line-strong: rgba(33, 39, 60, 0.16);
+  --accent: #617de8;
+  --accent-soft: rgba(97, 125, 232, 0.12);
+  --track: #e9ebf1;
+  --card-shadow: 0 1px 2px rgba(20, 25, 45, 0.025), 0 8px 24px rgba(20, 25, 45, 0.025);
+  /* Series de gráficos validadas (CVD y contraste) contra --surface en cada modo. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --grid: rgba(33, 39, 60, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16171b;
+    --bg-translucent: rgba(22, 23, 27, 0.86);
+    --sidebar: #1b1c21;
+    --panel: #191a1f;
+    --surface: #202126;
+    --input: #191a1f;
+    --inset: #1a1b20;
+    --hover: rgba(255, 255, 255, 0.055);
+    --text: #f0f1f4;
+    --muted: #8e929f;
+    --line: rgba(255, 255, 255, 0.075);
+    --line-strong: rgba(255, 255, 255, 0.14);
+    --accent: #8299f3;
+    --accent-soft: rgba(111, 137, 239, 0.14);
+    --track: #2b2d34;
+    --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --grid: rgba(255, 255, 255, 0.07);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+/* En una capa: el CSS sin capa ganaría a las utilidades `text-[..]` de Tailwind 4. */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 28%, transparent);
+  background-clip: padding-box;
+}
+
+.quick-action {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--surface);
+  padding: 0.75rem;
+  text-align: left;
+  box-shadow: var(--card-shadow);
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.quick-action:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+
+.quick-action-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.625rem;
+}
+
+.quick-action-icon svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.quick-action strong,
+.quick-action small {
+  display: block;
+}
+
+.tray-stat {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--inset);
+  padding: 0.6rem 0.25rem;
+  text-align: center;
+}
+
+.tray-stat svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-bottom: 0.3rem;
+}
+
+.tray-stat strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.7rem;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+}
+
+.tray-stat span {
+  color: var(--muted);
+  font-size: 0.5rem;
+}
+
+.tray-footer-action {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.4rem;
+  color: var(--muted);
+  font-size: 0.52rem;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.tray-footer-action:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.tray-footer-action svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.note-header-button {
+  display: grid;
+  width: 1.55rem;
+  height: 1.55rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.4rem;
+  color: rgb(71 85 105 / 0.75);
+  transition: background-color 120ms ease;
+}
+
+.note-header-button:hover {
+  background: rgb(15 23 42 / 0.08);
+}
+
+.note-header-button svg {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.note-mode-button {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 0.35rem;
+  padding: 0.3rem 0.4rem;
+  color: rgb(71 85 105 / 0.85);
+  font-size: 0.5rem;
+}
+
+.note-mode-button:hover:not(:disabled) {
+  background: rgb(15 23 42 / 0.08);
+}
+
+.note-mode-button svg,
+.note-tool-button svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.note-tool-button {
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 0.35);
+  color: rgb(71 85 105 / 0.8);
+}
+
+.quick-action strong {
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.quick-action small {
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.59rem;
+}

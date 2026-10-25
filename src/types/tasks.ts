@@ -1,0 +1,76 @@
+export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+export type TaskPriority = "none" | "low" | "medium" | "high" | "urgent";
+export type TaskView = "all" | "today" | "upcoming" | "completed";
+export type TaskSort = "due" | "priority" | "created" | "title";
+
+export type Tag = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export type TaskSummary = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  projectId: string | null;
+  projectName: string | null;
+  projectColor: string | null;
+  dueAt: number | null;
+  dueHasTime: boolean;
+  completedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+  estimatedMinutes: number | null;
+  trackedSeconds: number;
+  subtaskCount: number;
+  subtasksCompleted: number;
+  noteCount: number;
+  tags: Tag[];
+};
+
+export type Subtask = {
+  id: string;
+  title: string;
+  isCompleted: boolean;
+  position: number;
+};
+
+export type LinkedNote = {
+  id: string;
+  title: string;
+  preview: string;
+  color: string;
+  isArchived: boolean;
+};
+
+export type TaskDetail = TaskSummary & {
+  description: string;
+  subtasks: Subtask[];
+  notes: LinkedNote[];
+};
+
+export type TaskInput = {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  dueAt?: number | null;
+  dueHasTime?: boolean;
+  projectId?: string | null;
+  estimatedMinutes?: number | null;
+  tags?: string[];
+  noteId?: string | null;
+};
+
+export type TaskFilter = {
+  view: TaskView;
+  sort: TaskSort;
+  search?: string;
+  projectId?: string | null;
+  priority?: TaskPriority | null;
+  status?: TaskStatus | null;
+  tagId?: string | null;
+  includeCompleted?: boolean;
+};
