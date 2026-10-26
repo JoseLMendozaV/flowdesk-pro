@@ -29,6 +29,7 @@ type Draft = {
   priority: TaskPriority;
   dueDate: string;
   dueTime: string;
+  startDate: string;
   projectId: string;
   estimatedMinutes: string;
   tags: string[];
@@ -43,6 +44,7 @@ function draftFrom(task: TaskDetail): Draft {
     priority: task.priority,
     dueDate: dateInputValue(task.dueAt),
     dueTime: timeInputValue(task.dueAt, task.dueHasTime),
+    startDate: dateInputValue(task.startsAt),
     projectId: task.projectId ?? "",
     estimatedMinutes: task.estimatedMinutes === null ? "" : String(task.estimatedMinutes),
     tags: task.tags.map((tag) => tag.name),
@@ -60,6 +62,7 @@ function inputFrom(draft: Draft): TaskInput {
     priority: draft.priority,
     dueAt: due.dueAt,
     dueHasTime: due.dueHasTime,
+    startsAt: draft.startDate ? timestampFromInputs(draft.startDate, "").dueAt : null,
     projectId: draft.projectId || null,
     estimatedMinutes: minutes ? Math.max(0, Math.round(Number(minutes))) : null,
     tags: draft.tags,
@@ -285,6 +288,8 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
                 update({
                   dueDate,
                   dueTime: dueDate ? draft.dueTime : "",
+                  // El inicio nunca queda después de la fecha límite (las fechas ISO se comparan como texto).
+                  startDate: dueDate && draft.startDate > dueDate ? dueDate : draft.startDate,
                   recurrence: dueDate
                     ? followStart(draft.recurrence, timestampFromInputs(draft.dueDate, "").dueAt, timestampFromInputs(dueDate, "").dueAt)
                     : null,
@@ -296,6 +301,18 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
           <Field label="Hora (opcional)">
             <input type="time" value={draft.dueTime} disabled={!draft.dueDate} onChange={(event) => update({ dueTime: event.target.value })} className={`${fieldClass} disabled:opacity-50`} />
           </Field>
+          <Field label="Empieza (opcional)">
+            <input
+              type="date"
+              value={draft.startDate}
+              max={draft.dueDate || undefined}
+              onChange={(event) => update({ startDate: event.target.value })}
+              className={fieldClass}
+            />
+          </Field>
+          <p className="self-end pb-1.5 text-[10px] leading-4 text-[var(--muted)]">
+            {draft.startDate ? "Hasta ese día no aparece en Hoy." : "Sin fecha de inicio: se puede empezar ya."}
+          </p>
           <Field label="Proyecto">
             <select value={draft.projectId} onChange={(event) => update({ projectId: event.target.value })} className={fieldClass}>
               <option value="">Sin proyecto</option>

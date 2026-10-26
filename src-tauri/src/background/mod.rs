@@ -150,7 +150,11 @@ pub fn spawn_ticker(app: AppHandle) {
 pub fn spawn_reminders(app: AppHandle) {
     let listener = app.clone();
     app.listen_any("flowdesk://data-changed", move |event| {
-        if matches!(event.payload(), "\"tasks\"" | "\"notes\"" | "\"calendar\"") {
+        // Los espacios cambian qué evento anuncia la barra de menús.
+        if matches!(
+            event.payload(),
+            "\"tasks\"" | "\"notes\"" | "\"calendar\"" | "\"workspaces\""
+        ) {
             listener.state::<ReminderService>().wakeup.wake();
         }
     });
@@ -183,10 +187,11 @@ pub fn spawn_reminders(app: AppHandle) {
                 for notice in notices {
                     notify(&app, &notice.title, &notice.body);
                 }
-                dirty = service
-                    .wakeup
-                    .wait(Some(reminders::next_wait(&database, moment.now)))
-                    || handled;
+                let mut wait = reminders::next_wait(&database, moment.now);
+                if let Some(meeting) = tray::refresh_meeting(&app, &database, moment.now) {
+                    wait = wait.min(meeting);
+                }
+                dirty = service.wakeup.wait(Some(wait)) || handled;
             }
         });
     if let Err(error) = spawned {

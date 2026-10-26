@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { Bell, Download, Keyboard, LoaderCircle, Power, X } from "lucide-react";
+import { Bell, CalendarClock, Download, Keyboard, LoaderCircle, Power, X } from "lucide-react";
 import { minutesLabel } from "../calendar/calendarDates";
 import { OnboardingSettings } from "../onboarding/components/OnboardingSettings";
 import { useUpdateStore } from "../updates/updateStore";
@@ -12,7 +12,17 @@ import type { ShortcutStatus, TrayPreferences } from "../../types/dashboard";
 const initialPreferences: TrayPreferences = {
   launchAtLogin: false,
   launchHidden: false,
+  nextEventMinutes: 30,
 };
+
+const nextEventOptions = [
+  { value: 0, label: "Nunca" },
+  { value: 10, label: "10 min antes" },
+  { value: 15, label: "15 min antes" },
+  { value: 30, label: "30 min antes" },
+  { value: 60, label: "1 hora antes" },
+  { value: 120, label: "2 horas antes" },
+];
 
 function UpdatesSection() {
   const [version, setVersion] = useState("");
@@ -233,12 +243,34 @@ export function PreferencesDialog() {
               />
             </label>
 
+            <label className="flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--inset)] p-3.5">
+              <span className="grid size-8 place-items-center rounded-lg bg-sky-500/10 text-sky-500">
+                <CalendarClock className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <strong className="block text-xs font-medium">Próximo evento en la barra de menús</strong>
+                <small className="mt-0.5 block text-[10px] leading-4 text-[var(--muted)]">«Tutoría en 12 min» junto al icono. Si hay un temporizador en marcha, se muestra él.</small>
+              </span>
+              <select
+                value={preferences.nextEventMinutes}
+                onChange={(event) => setPreferences((value) => ({ ...value, nextEventMinutes: Number(event.target.value) }))}
+                aria-label="Antelación del próximo evento"
+                className="rounded-lg border border-[var(--line)] bg-[var(--input)] px-2 py-1.5 text-[11px] outline-none"
+              >
+                {nextEventOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+
             <RemindersSection />
 
             <UpdatesSection />
 
             <OnboardingSettings
-              canLeave={preferences.launchAtLogin === storedPreferences.launchAtLogin && preferences.launchHidden === storedPreferences.launchHidden}
+              canLeave={
+                preferences.launchAtLogin === storedPreferences.launchAtLogin &&
+                preferences.launchHidden === storedPreferences.launchHidden &&
+                preferences.nextEventMinutes === storedPreferences.nextEventMinutes
+              }
               onLeave={close}
             />
 

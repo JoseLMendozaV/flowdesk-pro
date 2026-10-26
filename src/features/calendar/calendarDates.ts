@@ -151,3 +151,42 @@ export function placeDayItems(events: CalendarEvent[], tasks: CalendarTask[], da
 export function minutesLabel(minutes: number) {
   return `${Math.floor(minutes / 60).toString().padStart(2, "0")}:${(minutes % 60).toString().padStart(2, "0")}`;
 }
+
+/** Paso al arrastrar o estirar en la cuadrícula. */
+export const SNAP_MINUTES = 15;
+
+export function snapMinutes(minutes: number) {
+  return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+}
+
+/** Inicio y fin (en segundos) de un bloque tal como se dibuja en la cuadrícula. */
+export type Span = { start: number; end: number };
+
+export function eventSpan(event: CalendarEvent): Span {
+  return { start: event.startsAt, end: event.endsAt };
+}
+
+/** Las tareas sin hora se dibujan a `untimedMinute`; las que no tienen estimación, 30 minutos. */
+export function taskSpan(task: CalendarTask, untimedMinute: number | null): Span {
+  const due = fromUnix(task.dueAt);
+  const start = task.dueHasTime ? task.dueAt : unix(startOfDay(due)) + (untimedMinute ?? 0) * 60;
+  return { start, end: start + (task.estimatedMinutes ?? DEFAULT_TASK_MINUTES) * 60 };
+}
+
+/**
+ * Mueve un bloque `dayDelta` días y `minuteDelta` minutos en hora de pared, sin que su
+ * inicio salga del día de destino. Conserva la duración.
+ */
+export function moveSpan(span: Span, dayDelta: number, minuteDelta: number): Span {
+  const start = fromUnix(span.start);
+  const day = addDays(startOfDay(start), dayDelta);
+  const minute = Math.min(Math.max(start.getHours() * 60 + start.getMinutes() + minuteDelta, 0), DAY_MINUTES - SNAP_MINUTES);
+  const moved = new Date(day);
+  moved.setMinutes(minute);
+  return { start: unix(moved), end: unix(moved) + (span.end - span.start) };
+}
+
+/** Estira o encoge el final de un bloque; nunca dura menos de 15 minutos. */
+export function resizeSpan(span: Span, minuteDelta: number): Span {
+  return { start: span.start, end: Math.max(span.start + SNAP_MINUTES * 60, span.end + minuteDelta * 60) };
+}

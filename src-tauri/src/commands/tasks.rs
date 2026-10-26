@@ -1,4 +1,5 @@
 use crate::{
+    background::timer::day_start,
     commands::trash::trash_task,
     commands::{
         dashboard::today_bounds,
@@ -9,9 +10,9 @@ use crate::{
         LinkedNote, Subtask, Tag, TaskDetail, TaskFilter, TaskInput, TaskSort, TaskSummary,
         TaskView,
     },
-    recurrence::RecurrenceRule,
+    recurrence::{RecurrenceRule, shift_local},
 };
-use chrono::Utc;
+use chrono::{Local, NaiveTime, TimeZone, Utc};
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value};
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
@@ -34,7 +35,7 @@ const TASK_SELECT: &str =
             (SELECT COUNT(*) FROM task_notes tn WHERE tn.task_id = t.id),
             (SELECT json_group_array(json_object('id', g.id, 'name', g.name, 'color', g.color))
              FROM task_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.task_id = t.id),
-            t.recurrence_rule, t.recurrence_next_id
+            t.recurrence_rule, t.recurrence_next_id, t.starts_at
      FROM tasks t LEFT JOIN projects p ON p.id = t.project_id";
 
 const PRIORITY_RANK: &str = "CASE t.priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3
@@ -48,6 +49,7 @@ struct ValidTask {
     priority: String,
     due_at: Option<i64>,
     due_has_time: bool,
+    starts_at: Option<i64>,
     project_id: Option<String>,
     estimated_minutes: Option<i64>,
     tags: Vec<String>,
@@ -70,6 +72,7 @@ fn map_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskSummary> {
         project_color: row.get(6)?,
         due_at: row.get(7)?,
         due_has_time: row.get(8)?,
+        starts_at: row.get(20)?,
         completed_at: row.get(9)?,
         created_at: row.get(10)?,
         updated_at: row.get(11)?,
@@ -238,6 +241,12 @@ fn validate_task(database: &Database, input: TaskInput) -> Result<ValidTask, Str
         }
         None => None,
     };
+    let starts_at = input.starts_at.map(local_noon);
+    if let (Some(starts_at), Some(due_at)) = (starts_at, input.due_at)
+        && day_start(starts_at) > day_start(due_at)
+    {
+        return Err("La fecha de inicio no puede ser posterior a la fecha límite".to_string());
+    }
     let project_id = input.project_id.filter(|id| !id.is_empty());
     if let Some(project_id) = &project_id {
         require_id(project_id, "Identificador de proyecto no válido")?;
@@ -255,11 +264,26 @@ fn validate_task(database: &Database, input: TaskInput) -> Result<ValidTask, Str
         priority,
         due_at: input.due_at,
         due_has_time: input.due_at.is_some() && input.due_has_time.unwrap_or(true),
+        starts_at,
         project_id,
         estimated_minutes: input.estimated_minutes,
         tags: normalize_tags(input.tags)?,
         recurrence,
     })
+}
+
+/// Mediodía local del día de `timestamp`: el inicio solo cuenta el día.
+fn local_noon(timestamp: i64) -> i64 {
+    let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap_or_default();
+    Local
+        .timestamp_opt(timestamp, 0)
+        .single()
+        .and_then(|moment| {
+            Local
+                .from_local_datetime(&moment.date_naive().and_time(noon))
+                .earliest()
+        })
+        .map_or(timestamp, |noon| noon.timestamp())
 }
 
 fn tag_color(name: &str) -> &'static str {
@@ -336,8 +360,8 @@ pub fn insert_task(database: &Database, input: TaskInput) -> Result<TaskDetail, 
         transaction.execute(
             "INSERT INTO tasks(id, title, description, status, priority, project_id,
                 estimated_minutes, due_at, due_has_time, completed_at, created_at, updated_at,
-                workspace_id, recurrence_rule)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?13)",
+                workspace_id, recurrence_rule, starts_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?13, ?14)",
             params![
                 id,
                 task.title,
@@ -351,7 +375,8 @@ pub fn insert_task(database: &Database, input: TaskInput) -> Result<TaskDetail, 
                 completed_at,
                 now,
                 workspace_id,
-                task.recurrence.as_ref().map(RecurrenceRule::to_json)
+                task.recurrence.as_ref().map(RecurrenceRule::to_json),
+                task.starts_at
             ],
         )?;
         sync_tags(&transaction, &id, &task.tags)?;
@@ -384,7 +409,7 @@ pub fn modify_task(
                 project_id = ?5, estimated_minutes = ?6, due_at = ?7, due_has_time = ?8,
                 completed_at = CASE WHEN ?3 = 'completed' THEN COALESCE(completed_at, ?9)
                                     ELSE NULL END,
-                updated_at = ?9, recurrence_rule = ?11
+                updated_at = ?9, recurrence_rule = ?11, starts_at = ?12
              WHERE id = ?10",
             params![
                 task.title,
@@ -397,7 +422,8 @@ pub fn modify_task(
                 task.due_has_time,
                 now,
                 task_id,
-                task.recurrence.as_ref().map(RecurrenceRule::to_json)
+                task.recurrence.as_ref().map(RecurrenceRule::to_json),
+                task.starts_at
             ],
         )?;
         sync_tags(&transaction, task_id, &task.tags)?;
@@ -485,14 +511,15 @@ fn spawn_next(
         .normalized(next_due, true)
         .unwrap_or_else(|_| rule.clone());
     let next_id = Uuid::new_v4().to_string();
+    let next_start = shifted_start(connection, task_id, due_at, next_due)?;
     connection.execute(
         "INSERT INTO tasks(id, title, description, status, priority, project_id, workspace_id,
             estimated_minutes, due_at, due_has_time, recurrence_rule, recurrence_pristine,
-            created_at, updated_at)
+            starts_at, created_at, updated_at)
          SELECT ?1, title, description, 'pending', priority, project_id, workspace_id,
-            estimated_minutes, ?2, due_has_time, ?3, 1, ?4, ?4
+            estimated_minutes, ?2, due_has_time, ?3, 1, ?6, ?4, ?4
          FROM tasks WHERE id = ?5",
-        params![next_id, next_due, rule.to_json(), now, task_id],
+        params![next_id, next_due, rule.to_json(), now, task_id, next_start],
     )?;
     connection.execute(
         "INSERT INTO task_tags(task_id, tag_id) SELECT ?1, tag_id FROM task_tags WHERE task_id = ?2",
@@ -518,6 +545,21 @@ fn spawn_next(
         params![next_id, task_id],
     )?;
     Ok(())
+}
+
+/// El inicio de una repetición guarda la misma distancia a su fecha límite.
+fn shifted_start(
+    connection: &Connection,
+    task_id: &str,
+    due_at: i64,
+    next_due: i64,
+) -> rusqlite::Result<Option<i64>> {
+    let starts_at: Option<i64> = connection.query_row(
+        "SELECT starts_at FROM tasks WHERE id = ?1",
+        [task_id],
+        |row| row.get(0),
+    )?;
+    Ok(starts_at.map(|start| local_noon(shift_local(start, due_at, next_due))))
 }
 
 fn undo_next(connection: &Connection, task_id: &str, next_id: &str) -> rusqlite::Result<()> {
@@ -561,9 +603,11 @@ pub fn skip_occurrence(database: &Database, task_id: &str) -> Result<TaskDetail,
         .ok_or_else(|| "La repetición no tiene más fechas".to_string())?;
     let rule = rule.normalized(next_due, true)?;
     database.with_connection(|connection| {
+        let next_start = shifted_start(connection, task_id, due_at, next_due)?;
         connection.execute(
-            "UPDATE tasks SET due_at = ?1, recurrence_rule = ?2, updated_at = ?3 WHERE id = ?4",
-            params![next_due, rule.to_json(), now, task_id],
+            "UPDATE tasks SET due_at = ?1, recurrence_rule = ?2, starts_at = ?5, updated_at = ?3
+             WHERE id = ?4",
+            params![next_due, rule.to_json(), now, task_id, next_start],
         )
     })?;
     load_detail(database, task_id)
@@ -597,26 +641,42 @@ pub fn query_tasks(database: &Database, filter: TaskFilter) -> Result<Vec<TaskSu
     if let Some(status) = &status {
         validate_status(status)?;
     }
+    // Hoy: lo que vence hoy o antes y lo que ya se puede empezar, nunca lo que empieza
+    // otro día. Próximas: lo demás con fecha futura (límite o inicio).
     match filter.view {
         TaskView::Today => {
             if filter.include_completed {
                 conditions.push(
-                    "((t.status IN ('pending', 'in_progress') AND t.due_at < ?)
+                    "((t.status IN ('pending', 'in_progress') AND (t.starts_at IS NULL OR t.starts_at < ?)
+                       AND (t.due_at < ? OR t.starts_at IS NOT NULL))
                       OR (t.completed_at >= ? AND t.completed_at < ?))",
                 );
                 values.extend([
+                    Value::Integer(tomorrow_start),
                     Value::Integer(tomorrow_start),
                     Value::Integer(today_start),
                     Value::Integer(tomorrow_start),
                 ]);
             } else {
-                conditions.push("t.status IN ('pending', 'in_progress') AND t.due_at < ?");
-                values.push(Value::Integer(tomorrow_start));
+                conditions.push(
+                    "t.status IN ('pending', 'in_progress') AND (t.starts_at IS NULL OR t.starts_at < ?)
+                     AND (t.due_at < ? OR t.starts_at IS NOT NULL)",
+                );
+                values.extend([
+                    Value::Integer(tomorrow_start),
+                    Value::Integer(tomorrow_start),
+                ]);
             }
         }
         TaskView::Upcoming => {
-            conditions.push("t.status IN ('pending', 'in_progress') AND t.due_at >= ?");
-            values.push(Value::Integer(tomorrow_start));
+            conditions.push(
+                "t.status IN ('pending', 'in_progress')
+                 AND (t.starts_at >= ? OR (t.starts_at IS NULL AND t.due_at >= ?))",
+            );
+            values.extend([
+                Value::Integer(tomorrow_start),
+                Value::Integer(tomorrow_start),
+            ]);
         }
         TaskView::Completed => conditions.push("t.status = 'completed'"),
         TaskView::All => {
@@ -1363,5 +1423,85 @@ mod tests {
         assert_eq!(task_count(&database), 1);
         let plain = insert_task(&database, titled("Sin repetir")).expect("plain");
         assert!(skip_occurrence(&database, &plain.summary.id).is_err());
+    }
+
+    #[test]
+    fn start_dates_keep_tasks_out_of_today_until_they_begin() {
+        let database = Database::in_memory();
+        let (today_start, tomorrow_start) = today_bounds().expect("bounds");
+        let week = 7 * 86_400;
+        let view = |view| {
+            let tasks = query_tasks(
+                &database,
+                TaskFilter {
+                    view,
+                    ..TaskFilter::default()
+                },
+            )
+            .expect("view");
+            titles(&tasks)
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        };
+        let later = insert_task(
+            &database,
+            TaskInput {
+                starts_at: Some(tomorrow_start + 3 * 86_400 + 600),
+                ..due("Preparar desde el lunes", tomorrow_start + week)
+            },
+        )
+        .expect("future start");
+        // El inicio solo guarda el día, a mediodía.
+        let start = later.summary.starts_at.expect("start");
+        assert_eq!(day_start(start), day_start(tomorrow_start + 3 * 86_400));
+        assert_eq!(start, local_noon(start));
+        insert_task(
+            &database,
+            TaskInput {
+                starts_at: Some(today_start - 86_400),
+                ..titled("Empezada ayer, sin fecha límite")
+            },
+        )
+        .expect("started");
+        insert_task(&database, due("Vence hoy", today_start + 3_600)).expect("due today");
+
+        assert_eq!(
+            view(TaskView::Today),
+            ["Vence hoy", "Empezada ayer, sin fecha límite"]
+        );
+        assert_eq!(view(TaskView::Upcoming), ["Preparar desde el lunes"]);
+
+        let too_late = TaskInput {
+            starts_at: Some(tomorrow_start + 86_400),
+            ..due("Al revés", tomorrow_start)
+        };
+        assert_eq!(
+            insert_task(&database, too_late).unwrap_err(),
+            "La fecha de inicio no puede ser posterior a la fecha límite"
+        );
+    }
+
+    #[test]
+    fn repetitions_keep_the_distance_to_their_start() {
+        let database = Database::in_memory();
+        let (today_start, _) = today_bounds().expect("bounds");
+        let due_at = today_start + 9 * 3600;
+        let task = insert_task(
+            &database,
+            TaskInput {
+                starts_at: Some(due_at - 2 * 86_400),
+                ..daily_from(due_at)
+            },
+        )
+        .expect("task");
+        let done = change_status(&database, &task.summary.id, "completed").expect("complete");
+        let next =
+            load_detail(&database, &done.summary.recurrence_next_id.expect("next")).expect("next");
+        let next_due = next.summary.due_at.expect("due");
+        assert_eq!(
+            day_start(next.summary.starts_at.expect("start")),
+            day_start(shift_local(due_at - 2 * 86_400, due_at, next_due))
+        );
     }
 }

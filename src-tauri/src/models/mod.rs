@@ -94,6 +94,8 @@ pub struct DashboardSummary {
 pub struct TrayPreferences {
     pub launch_at_login: bool,
     pub launch_hidden: bool,
+    /// Minutos antes de un evento en que se anuncia junto al icono; 0 = nunca.
+    pub next_event_minutes: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]

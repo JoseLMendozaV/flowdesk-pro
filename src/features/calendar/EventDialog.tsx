@@ -10,6 +10,7 @@ import { RecurrenceField } from "../recurrence/RecurrenceField";
 import { followStart } from "../recurrence/recurrenceRules";
 import { useUndoStore } from "../trash/undoStore";
 import { addDays, fromUnix, unix } from "./calendarDates";
+import { ScopeChoices } from "./ScopeChoices";
 
 const fieldClass =
   "w-full rounded-lg border border-[var(--line)] bg-[var(--input)] px-3 py-2 text-xs outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]";
@@ -234,28 +235,14 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
         {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-red-500">{error}</p>}
 
         {pendingScope && (
-          <div ref={scopeRef} role="group" aria-label="A qué eventos se aplica" className="mt-4 rounded-xl border border-[var(--line-strong)] bg-[var(--inset)] p-3">
-            <p className="mb-2 text-[11px] font-medium">
-              {pendingScope.action === "delete" ? "Este evento se repite. ¿Qué quieres eliminar?" : "Este evento se repite. ¿A cuáles aplicas el cambio?"}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {!(pendingScope.action === "save" && pendingScope.ruleChanged) && (
-                <button type="button" onClick={() => applyScope("this")} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]">
-                  Solo este evento
-                </button>
-              )}
-              {!isFirstOccurrence && (
-                <button type="button" onClick={() => applyScope("following")} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]">
-                  Este y los siguientes
-                </button>
-              )}
-              <button type="button" onClick={() => applyScope("all")} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]">
-                Todos los eventos
-              </button>
-              <button type="button" onClick={() => setPendingScope(null)} className="rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--hover)]">
-                Cancelar
-              </button>
-            </div>
+          <div ref={scopeRef} className="mt-4">
+            <ScopeChoices
+              question={pendingScope.action === "delete" ? "Este evento se repite. ¿Qué quieres eliminar?" : "Este evento se repite. ¿A cuáles aplicas el cambio?"}
+              allowThis={!(pendingScope.action === "save" && pendingScope.ruleChanged)}
+              allowFollowing={!isFirstOccurrence}
+              onChoose={applyScope}
+              onCancel={() => setPendingScope(null)}
+            />
           </div>
         )}
 

@@ -21,6 +21,8 @@ pub struct TaskSummary {
     pub project_color: Option<String>,
     pub due_at: Option<i64>,
     pub due_has_time: bool,
+    /// Día desde el que se puede empezar (mediodía local).
+    pub starts_at: Option<i64>,
     pub completed_at: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -74,6 +76,8 @@ pub struct TaskInput {
     pub priority: Option<String>,
     pub due_at: Option<i64>,
     pub due_has_time: Option<bool>,
+    /// Solo cuenta el día; no puede ser posterior a la fecha límite.
+    pub starts_at: Option<i64>,
     pub project_id: Option<String>,
     pub estimated_minutes: Option<i64>,
     pub tags: Vec<String>,

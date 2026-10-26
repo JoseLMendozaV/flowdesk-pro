@@ -179,31 +179,7 @@ pub fn query_range(database: &Database, start: i64, end: i64) -> Result<Calendar
     database.with_connection(|connection| {
         // `?3`: espacio activo (ver commands/workspaces.rs).
         let workspace_id = active_workspace(connection)?;
-        let mut events: Vec<CalendarEvent> = connection
-            .prepare(&format!(
-                "{EVENT_SELECT} WHERE e.starts_at < ?2
-                 AND (e.recurrence_rule IS NOT NULL OR e.ends_at > ?1) AND {}",
-                event_scope("e", "?3")
-            ))?
-            .query_map(params![start, end, workspace_id], map_event)?
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flat_map(|stored| match &stored.event.recurrence {
-                Some(rule) => rule
-                    .occurrences(
-                        stored.event.starts_at,
-                        stored.event.ends_at - stored.event.starts_at,
-                        &stored.exceptions,
-                        start,
-                        end,
-                    )
-                    .into_iter()
-                    .map(|occurrence| stored.occurrence(occurrence))
-                    .collect(),
-                None => vec![stored.event],
-            })
-            .collect();
-        sort_events(&mut events);
+        let events = events_between(connection, &workspace_id, start, end)?;
         let tasks = connection
             .prepare(&format!(
                 "SELECT t.id, t.title, t.status, t.priority, t.due_at, t.due_has_time, p.color,
@@ -229,6 +205,80 @@ pub fn query_range(database: &Database, start: i64, end: i64) -> Result<Calendar
             .collect::<Result<Vec<_>, _>>()?;
         Ok(CalendarRange { events, tasks })
     })
+}
+
+/// Eventos del espacio `workspace_id` que se solapan con `[start, end)`, con las
+/// repeticiones expandidas y ordenados como en el calendario.
+pub fn events_between(
+    connection: &Connection,
+    workspace_id: &Option<String>,
+    start: i64,
+    end: i64,
+) -> rusqlite::Result<Vec<CalendarEvent>> {
+    let mut events: Vec<CalendarEvent> = connection
+        .prepare(&format!(
+            "{EVENT_SELECT} WHERE e.starts_at < ?2
+             AND (e.recurrence_rule IS NOT NULL OR e.ends_at > ?1) AND {}",
+            event_scope("e", "?3")
+        ))?
+        .query_map(params![start, end, workspace_id], map_event)?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flat_map(|stored| match &stored.event.recurrence {
+            Some(rule) => rule
+                .occurrences(
+                    stored.event.starts_at,
+                    stored.event.ends_at - stored.event.starts_at,
+                    &stored.exceptions,
+                    start,
+                    end,
+                )
+                .into_iter()
+                .map(|occurrence| stored.occurrence(occurrence))
+                .collect(),
+            None => vec![stored.event],
+        })
+        .collect();
+    sort_events(&mut events);
+    Ok(events)
+}
+
+/// Un evento que empezó hace menos de esto se sigue anunciando («ahora»).
+pub const MEETING_GRACE_SECONDS: i64 = 15 * 60;
+
+/// Evento con hora que la barra de menús anuncia: el siguiente que empieza en los próximos
+/// `lead_minutes`, o si no hay ninguno, el que empezó hace menos de 15 minutos y sigue.
+pub fn next_meeting(
+    connection: &Connection,
+    workspace_id: &Option<String>,
+    now: i64,
+    lead_minutes: i64,
+) -> rusqlite::Result<Option<CalendarEvent>> {
+    if lead_minutes <= 0 {
+        return Ok(None);
+    }
+    let events: Vec<CalendarEvent> = events_between(
+        connection,
+        workspace_id,
+        now - MEETING_GRACE_SECONDS,
+        now + lead_minutes * 60 + 1,
+    )?
+    .into_iter()
+    .filter(|event| !event.is_all_day && event.ends_at > now)
+    .collect();
+    let upcoming = events
+        .iter()
+        .filter(|event| event.starts_at > now)
+        .min_by_key(|event| event.starts_at);
+    let ongoing = || {
+        events
+            .iter()
+            .filter(|event| {
+                event.starts_at <= now && event.starts_at >= now - MEETING_GRACE_SECONDS
+            })
+            .max_by_key(|event| event.starts_at)
+    };
+    Ok(upcoming.or_else(ongoing).cloned())
 }
 
 /// Próxima repetición, aún sin terminar a las `now`, de los eventos que se repiten del espacio `ws`.
@@ -830,5 +880,45 @@ mod tests {
         let restored = load_event(&database, &created.id).expect("restored");
         assert!(restored.recurrence.is_some());
         assert!(query_items(&database).expect("trash").is_empty());
+    }
+
+    #[test]
+    fn next_meeting_announces_the_coming_timed_event() {
+        let database = Database::in_memory();
+        let now = MONDAY;
+        let meeting = |lead| {
+            database
+                .with_connection(|connection| next_meeting(connection, &None, now, lead))
+                .expect("meeting")
+                .map(|event| (event.title, event.starts_at))
+        };
+        assert_eq!(meeting(30), None);
+        insert_event(
+            &database,
+            EventInput {
+                is_all_day: true,
+                ..event("Congreso", now - 3_600, now + 86_400)
+            },
+        )
+        .expect("all day");
+        insert_event(&database, event("Tutoría", now + 1_200, now + 4_800)).expect("soon");
+        insert_event(&database, event("Más tarde", now + 7_200, now + 9_000)).expect("later");
+        assert_eq!(meeting(30), Some(("Tutoría".to_string(), now + 1_200)));
+        assert_eq!(meeting(10), None, "fuera de la antelación");
+        assert_eq!(meeting(0), None, "desactivado");
+
+        // Recién empezado y sin otro a la vista: «ahora».
+        insert_event(&database, event("Seminario", now - 600, now + 3_000)).expect("ongoing");
+        assert_eq!(meeting(10), Some(("Seminario".to_string(), now - 600)));
+        // Las repeticiones cuentan con su hora de hoy.
+        insert_event(
+            &database,
+            EventInput {
+                recurrence: weekly(),
+                ..event("Clase", now - WEEK + 300, now - WEEK + 3_900)
+            },
+        )
+        .expect("series");
+        assert_eq!(meeting(30), Some(("Clase".to_string(), now + 300)));
     }
 }

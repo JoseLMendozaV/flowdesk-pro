@@ -1,11 +1,26 @@
 import { Check, MapPin, Repeat } from "lucide-react";
 import { formatTime } from "../../services/format";
-import type { CalendarEvent, CalendarTask } from "../../types/calendar";
+import type { CalendarEvent, CalendarTask, EventInput } from "../../types/calendar";
 
 const fallbackColor = "#6C8CFF";
 
 export function eventColor(event: CalendarEvent) {
   return event.projectColor ?? fallbackColor;
+}
+
+/** Campos editables de un evento con otro horario, para guardarlo sin abrir el diálogo. */
+export function inputFromEvent(event: CalendarEvent, startsAt: number, endsAt: number): EventInput {
+  return {
+    title: event.title,
+    description: event.description,
+    projectId: event.projectId,
+    startsAt,
+    endsAt,
+    isAllDay: event.isAllDay,
+    location: event.location,
+    reminderMinutes: event.reminderMinutes,
+    recurrence: event.recurrence,
+  };
 }
 
 /** Las repeticiones de un evento comparten `id`: la clave incluye su inicio. */
@@ -95,6 +110,7 @@ export function TaskBlock({ task, defaultTime, compact, onToggle, onOpen }: { ta
           onToggle(task);
         }}
         aria-label={done ? `Marcar como pendiente: ${task.title}` : `Completar: ${task.title}`}
+        data-no-drag
         className={`mt-px grid size-3 flex-none place-items-center rounded-full border ${done ? "border-emerald-500 bg-emerald-500 text-white" : "hover:border-emerald-500"}`}
         style={!done ? { borderColor: color } : undefined}
       >

@@ -1,18 +1,33 @@
-import { Check, Flag, ListChecks, Repeat, StickyNote } from "lucide-react";
+import { Check, Flag, Hourglass, ListChecks, Repeat, StickyNote } from "lucide-react";
 import { describeDue } from "../../services/format";
 import type { TaskSummary } from "../../types/tasks";
 import { isClosed, priorityMeta } from "./taskMeta";
 
 type TaskMetaProps = { task: TaskSummary; hideProject?: boolean };
 
+/** Inicio de una tarea que todavía no se puede empezar («Empieza el lunes»), o `null`. */
+export function pendingStart(task: TaskSummary, now = new Date()) {
+  if (!task.startsAt) return null;
+  const tomorrow = new Date(now);
+  tomorrow.setHours(24, 0, 0, 0);
+  if (task.startsAt * 1000 < tomorrow.getTime()) return null;
+  return `Empieza ${describeDue(task.startsAt, false, now).label.toLocaleLowerCase("es")}`;
+}
+
 export function TaskMetaLine({ task, hideProject }: TaskMetaProps) {
   const due = task.dueAt ? describeDue(task.dueAt, task.dueHasTime) : null;
+  const start = isClosed(task.status) ? null : pendingStart(task);
   const closed = isClosed(task.status);
   return (
     <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-[var(--muted)]">
       {due && (
         <span className={!closed && due.overdue ? "font-medium text-red-500" : due.today && !closed ? "text-[var(--accent)]" : ""}>
           {due.label}
+        </span>
+      )}
+      {start && (
+        <span className="flex items-center gap-0.5" title="Hasta ese día no aparece en Hoy">
+          <Hourglass className="size-3" /> {start}
         </span>
       )}
       {task.recurrence && (

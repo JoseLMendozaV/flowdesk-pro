@@ -442,3 +442,73 @@ test("al cambiar o borrar una repetición se elige a cuáles se aplica", async (
   }
 });
 
+/** Centro (x) y parte alta (y) del bloque cuyo texto empieza por `title`. */
+const blockPoint = (title) => `(() => {
+  const block = [...document.querySelectorAll('.group\\\\/block')].find((element) => element.textContent.trim().startsWith(${JSON.stringify(title)}));
+  if (!block) return null;
+  block.scrollIntoView({ block: 'center' });
+  const rect = block.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + 8, bottom: rect.bottom - 2, width: rect.width };
+})()`;
+
+test("arrastrar un evento lo mueve de hora y de día, y estirarlo cambia su duración", async () => {
+  const page = await open("target=calendar&state=seen", { width: 1180, height: 760 });
+  try {
+    const point = await page.evaluate(blockPoint("Revisión de prácticas"));
+    assert.ok(point, "el evento de hoy está en la semana");
+    // Una hora más tarde (44 px) y un día a la derecha (a la izquierda si hoy es domingo).
+    const direction = new Date().getDay() === 0 ? -1 : 1;
+    await page.drag(point, { x: point.x + direction * (point.width + 4), y: point.y + 44 });
+    const [update] = await page.evaluate(calls("update_event"));
+    assert.equal(update.eventId, "e6");
+    assert.equal(update.input.endsAt - update.input.startsAt, 3600, "conserva la duración");
+    const moved = new Date(update.input.startsAt * 1000);
+    assert.equal(moved.getHours(), 14);
+    const today = new Date();
+    assert.equal(Math.round((new Date(moved).setHours(0, 0, 0, 0) - today.setHours(0, 0, 0, 0)) / 86_400_000), direction);
+    assert.equal(update.scope, null, "un evento suelto no pregunta");
+    assert.equal(await page.evaluate("Boolean(document.querySelector('#event-dialog-title'))"), false, "soltar no abre el diálogo");
+
+    const resize = await page.evaluate(blockPoint("Revisión de prácticas"));
+    await page.drag({ x: resize.x, y: resize.bottom }, { x: resize.x, y: resize.bottom + 22 });
+    const [, stretched] = await page.evaluate(calls("update_event"));
+    assert.equal(stretched.input.endsAt - stretched.input.startsAt, 90 * 60, "de 1 h a 1 h 30");
+  } finally {
+    await page.close();
+  }
+});
+
+test("mover una repetición pregunta a cuáles se aplica y Cancelar la devuelve", async () => {
+  const page = await open("target=calendar&state=seen", { width: 1180, height: 760 });
+  try {
+    const point = await page.evaluate(blockPoint("Tutoría con estudiantes"));
+    await page.drag(point, { x: point.x, y: point.y + 88 });
+    await page.waitFor(`${text}.includes("¿Qué repeticiones mueves?")`);
+    assert.equal((await page.evaluate(calls("update_event"))).length, 0);
+    await page.click("Cancelar");
+    assert.equal((await page.evaluate(calls("update_event"))).length, 0);
+    const back = await page.evaluate(blockPoint("Tutoría con estudiantes"));
+    assert.ok(Math.abs(back.y - point.y) < 4, "vuelve a su hora");
+
+    await page.drag(back, { x: back.x, y: back.y + 88 });
+    await page.click("Solo este evento");
+    const [update] = await page.evaluate(calls("update_event"));
+    assert.equal(update.scope, "this");
+    assert.equal(new Date(update.input.startsAt * 1000).getHours(), 17);
+  } finally {
+    await page.close();
+  }
+});
+
+test("una tarea que empieza otro día lo indica y su detalle muestra la fecha de inicio", async () => {
+  const page = await open("target=tasks&state=seen", { width: 1180, height: 760 });
+  try {
+    await page.click("Todas");
+    await page.waitFor(`${text}.includes("Empieza pasado mañana") || /Empieza \\w+/.test(${text})`);
+    await page.evaluate(clickRole("button", "Planificar las prácticas"));
+    await page.waitFor(`${text}.includes("Hasta ese día no aparece en Hoy.")`);
+  } finally {
+    await page.close();
+  }
+});
+

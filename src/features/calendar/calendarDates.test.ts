@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CalendarEvent, CalendarTask } from "../../types/calendar";
-import { DEFAULT_TASK_MINUTES, placeDayItems } from "./calendarDates.ts";
+import { DEFAULT_TASK_MINUTES, fromUnix, moveSpan, placeDayItems, resizeSpan, snapMinutes, taskSpan, unix } from "./calendarDates.ts";
 
 const day = new Date(2026, 9, 26);
 const at = (hour: number, minute = 0) => Math.floor(new Date(2026, 9, 26, hour, minute).getTime() / 1000);
@@ -48,4 +48,27 @@ test("tareas y eventos que coinciden se reparten el ancho", () => {
 test("una tarea al final del día no se sale de la cuadrícula", () => {
   const [item] = placeDayItems([], [task("t", at(23, 50), true, 120)], day, null);
   assert.ok(item.top + item.height <= 24 * 60);
+});
+
+test("arrastrar mueve en hora de pared, sin salir del día, y estirar respeta el mínimo", () => {
+  const start = new Date(2026, 9, 26, 10, 0);
+  const span = { start: unix(start), end: unix(start) + 3600 };
+  const moved = moveSpan(span, 2, 45);
+  assert.equal(fromUnix(moved.start).getDate(), 28);
+  assert.equal(fromUnix(moved.start).getHours() * 60 + fromUnix(moved.start).getMinutes(), 10 * 60 + 45);
+  assert.equal(moved.end - moved.start, 3600);
+  // El inicio no pasa de las 23:45 ni baja de las 0:00.
+  assert.equal(fromUnix(moveSpan(span, 0, 20 * 60).start).getHours(), 23);
+  assert.equal(fromUnix(moveSpan(span, 0, -12 * 60).start).getHours(), 0);
+  assert.equal(resizeSpan(span, 30).end - span.start, 90 * 60);
+  assert.equal(resizeSpan(span, -120).end - span.start, 15 * 60);
+  assert.equal(snapMinutes(22), 15);
+  assert.equal(snapMinutes(23), 30);
+});
+
+test("las tareas sin hora se arrastran desde la hora por defecto", () => {
+  const due = new Date(2026, 9, 26, 12, 0);
+  const span = taskSpan(task("t", unix(due), false), 9 * 60);
+  assert.equal(fromUnix(span.start).getHours(), 9);
+  assert.equal(span.end - span.start, 30 * 60);
 });

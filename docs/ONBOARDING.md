@@ -26,6 +26,7 @@ La disponibilidad no depende de la fase, sino del registro y de lo que Rust decl
 | Seguimiento del tiempo | 5 | 0.1.0 (por aplicación en 0.2.0) | Se presenta |
 | Agenda y recordatorios (mejorada en 0.5.0 y 0.6.0), Espacios (mejorados en 0.4.0), Portapapeles | 6 | 0.2.0 | Se presentan |
 | Tareas que se repiten (mejora de Tareas), Paleta de comandos, Papelera | — | 0.6.0 | Se presentan |
+| Fecha de inicio (Tareas), arrastrar en el calendario (Agenda), próximo evento (Barra de menús) | — | 0.7.0 | Mejoras de funciones existentes |
 | IA local | 8 | — | **No se presenta**: no hay módulo; la barra lateral la muestra deshabilitada |
 
 ## Cuándo se abre

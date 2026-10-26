@@ -79,12 +79,13 @@ pub fn load_dashboard(database: &Database) -> Result<DashboardSummary, String> {
             "SELECT t.id, t.title, t.priority, t.due_at, t.due_has_time, p.color
              FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
              WHERE t.status NOT IN ('completed', 'cancelled') AND t.due_at IS NOT NULL
-             AND {}
+             AND (t.starts_at IS NULL OR t.starts_at < ?2) AND {}
              ORDER BY t.due_at ASC LIMIT 5",
             format_args!("(?1 IS NULL OR {})", task_scope("t", "?1"))
         ))?;
+        // Lo que aún no se puede empezar no aparece entre las próximas.
         let upcoming_tasks = task_statement
-            .query_map([&workspace_id], |row| {
+            .query_map(params![workspace_id, tomorrow_start], |row| {
                 Ok(DashboardTask {
                     id: row.get(0)?,
                     title: row.get(1)?,

@@ -56,7 +56,7 @@ La ventana principal nace invisible para evitar destellos. En un inicio normal R
 
 Además del temporizador hay tres hilos, todos con la señal común `Wakeup` para despertar sin sondear cuando cambian datos o preferencias:
 
-- `flowdesk-reminders`: deriva los avisos de tareas, notas y eventos y los entrega; duerme hasta el siguiente aviso, como mucho 60 s.
+- `flowdesk-reminders`: deriva los avisos de tareas, notas y eventos y los entrega; duerme hasta el siguiente aviso, como mucho 60 s. También actualiza el próximo evento junto al icono de la barra de menús, que comparte el título con el temporizador (este tiene prioridad).
 - `flowdesk-clipboard`: con consentimiento, compara `NSPasteboard.changeCount` cada segundo; si no, duerme indefinidamente.
 - `flowdesk-app-tracking`: con consentimiento, una muestra cada 5 s de la app en primer plano y la inactividad; si no, duerme indefinidamente.
 

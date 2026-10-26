@@ -52,6 +52,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   delete_task: () => "trash-task",
   delete_event: () => "trash-event",
   restore_trash_item: () => ({ entityType: "task", entityId: "k3" }),
+  update_task: (args) => ({ ...data.tasks.find((task) => task.id === args.taskId), ...(args.input as object), description: "", subtasks: [], notes: [] }),
   update_event: (args) => ({ ...data.events.find((event) => event.id === args.eventId), ...(args.input as object) }),
   list_projects: () => data.projects,
   get_project: (args) => data.projects.find((project) => project.id === args.projectId),
@@ -91,7 +92,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_clipboard_settings: () => data.clipboardSettings,
   list_clipboard: () => data.clipboardItems,
   get_shortcut_status: () => data.shortcuts,
-  get_tray_preferences: () => ({ launchAtLogin: true, launchHidden: false }),
+  get_tray_preferences: () => ({ launchAtLogin: true, launchHidden: false, nextEventMinutes: 30 }),
   get_onboarding_state: () => onboarding,
   update_onboarding_preferences: (args) => (onboarding = { ...onboarding, ...(args.preferences as object) }),
   finish_welcome_onboarding: (args) =>

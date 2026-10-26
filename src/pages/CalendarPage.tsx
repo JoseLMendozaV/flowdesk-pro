@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckSquare2, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { inputFromEvent } from "../features/calendar/CalendarItems";
 import { EventDialog, type EventDraft } from "../features/calendar/EventDialog";
 import { MonthView } from "../features/calendar/MonthView";
-import { TimeGrid } from "../features/calendar/TimeGrid";
+import { ScopeChoices } from "../features/calendar/ScopeChoices";
+import { TimeGrid, type GridChange } from "../features/calendar/TimeGrid";
+import { followStart } from "../features/recurrence/recurrenceRules";
+import { inputFromTask } from "../features/tasks/taskInput";
 import { addDays, minutesLabel, rangeTitle, shiftAnchor, startOfDay, unix, visibleDays } from "../features/calendar/calendarDates";
 import { useCalendar, useMinuteClock } from "../features/calendar/useCalendar";
 import { flowdeskApi } from "../services/flowdeskApi";
+import { useEscape } from "../hooks/useEscape";
 import { errorMessage } from "../services/format";
 import { useAppStore } from "../stores/appStore";
-import type { CalendarEvent, CalendarMode, CalendarTask } from "../types/calendar";
+import type { CalendarEvent, CalendarMode, CalendarTask, EventInput, EventScope } from "../types/calendar";
 
 /** Dónde colocar las tareas con fecha pero sin hora en las vistas de día y semana. */
 const untimedOptions = [8, 9, 10, 12, 14, 16, 18].map((hour) => hour * 60);
@@ -20,6 +25,15 @@ const modes: { value: CalendarMode; label: string; key: string }[] = [
 ];
 
 type Editing = { event: CalendarEvent | null; draft: EventDraft };
+/** Repetición arrastrada que espera a saber a cuáles se aplica el cambio. */
+type PendingMove = { event: CalendarEvent; input: EventInput; resolve: (applied: boolean) => void };
+
+/** Mediodía local del día de `timestamp`: así se guardan las fechas de inicio. */
+function noonOf(timestamp: number) {
+  const date = new Date(timestamp * 1000);
+  date.setHours(12, 0, 0, 0);
+  return Math.floor(date.getTime() / 1000);
+}
 
 function timedDraft(start: Date): EventDraft {
   return { startsAt: unix(start), endsAt: unix(start) + 3600, isAllDay: false };
@@ -41,6 +55,8 @@ export function CalendarPage() {
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [editing, setEditing] = useState<Editing | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  useEscape(() => void applyMove(null), Boolean(pendingMove));
   const now = useMinuteClock();
 
   const days = useMemo(() => visibleDays(mode, anchor), [mode, anchor]);
@@ -69,6 +85,52 @@ export function CalendarPage() {
     newEvent();
   });
 
+  /** Guarda un bloque arrastrado o estirado. Las series preguntan antes a cuáles se aplica. */
+  async function applyChange(change: GridChange): Promise<boolean> {
+    try {
+      if (change.kind === "task") {
+        const detail = await flowdeskApi.task(change.task.id);
+        const input = inputFromTask(detail);
+        const minutes = Math.round((change.span.end - change.span.start) / 60);
+        // El inicio nunca queda después de la nueva fecha límite.
+        const startsAt = input.startsAt && input.startsAt > change.span.start ? noonOf(change.span.start) : input.startsAt;
+        await flowdeskApi.updateTask(detail.id, {
+          ...input,
+          dueAt: change.span.start,
+          dueHasTime: true,
+          startsAt,
+          estimatedMinutes: minutes,
+          recurrence: followStart(input.recurrence ?? null, detail.dueAt, change.span.start),
+        });
+      } else {
+        const { event, span } = change;
+        const input = { ...inputFromEvent(event, span.start, span.end), recurrence: followStart(event.recurrence, event.startsAt, span.start) };
+        if (event.recurrence) return await new Promise<boolean>((resolve) => setPendingMove({ event, input, resolve }));
+        await flowdeskApi.updateEvent(event.id, input);
+      }
+      setActionError(null);
+      return true;
+    } catch (reason) {
+      setActionError(errorMessage(reason));
+      return false;
+    }
+  }
+
+  async function applyMove(scope: EventScope | null) {
+    if (!pendingMove) return;
+    const { event, input, resolve } = pendingMove;
+    setPendingMove(null);
+    if (!scope) return resolve(false);
+    try {
+      await flowdeskApi.updateEvent(event.id, input, scope, event.startsAt);
+      setActionError(null);
+      resolve(true);
+    } catch (reason) {
+      setActionError(errorMessage(reason));
+      resolve(false);
+    }
+  }
+
   async function toggleTask(task: CalendarTask) {
     try {
       await flowdeskApi.setTaskStatus(task.id, task.status === "completed" ? "pending" : "completed");
@@ -81,7 +143,7 @@ export function CalendarPage() {
   useEffect(() => {
     function handle(event: KeyboardEvent) {
       const target = event.target as HTMLElement;
-      if (editing || event.metaKey || event.ctrlKey || event.altKey || target.closest("input, textarea, select, [contenteditable]")) return;
+      if (editing || pendingMove || event.metaKey || event.ctrlKey || event.altKey || target.closest("input, textarea, select, [contenteditable]")) return;
       if (event.key === "ArrowLeft") setAnchor((value) => shiftAnchor(mode, value, -1));
       else if (event.key === "ArrowRight") setAnchor((value) => shiftAnchor(mode, value, 1));
       else if (event.key.toLowerCase() === "t") setAnchor(startOfDay(new Date()));
@@ -94,14 +156,14 @@ export function CalendarPage() {
     }
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
-  }, [editing, mode, setMode]);
+  }, [editing, mode, pendingMove, setMode]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header data-tauri-drag-region="deep" className="flex h-[74px] flex-none items-end justify-between gap-4 border-b border-[var(--line)] bg-[color:var(--bg-translucent)] px-6 pb-3 backdrop-blur-xl">
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold tracking-[-0.025em]">{rangeTitle(mode, anchor)}</h1>
-          <p className="mt-0.5 text-[11px] text-[var(--muted)]">Eventos y fechas límite de tus tareas · ← → para moverte, T para hoy</p>
+          <p className="mt-0.5 text-[11px] text-[var(--muted)]">Arrastra para mover o estirar · ← → para moverte, T para hoy</p>
         </div>
         <div className="flex flex-none items-center gap-2">
           <div data-tour-id="calendar-navigation" className="flex items-center rounded-lg border border-[var(--line)] bg-[var(--surface)]">
@@ -171,9 +233,24 @@ export function CalendarPage() {
             onToggleTask={(task) => void toggleTask(task)}
             onOpenTask={(task) => focusTask(task.id)}
             untimedTaskMinute={untimedTaskMinute}
+            onChange={applyChange}
           />
         )}
       </div>
+
+      {pendingMove && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/25 p-5 backdrop-blur-[2px]" role="presentation" onMouseDown={(mouseEvent) => mouseEvent.target === mouseEvent.currentTarget && void applyMove(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Mover un evento que se repite" className="w-full max-w-md rounded-2xl border border-[var(--line-strong)] bg-[var(--surface)] p-4 shadow-2xl">
+            <ScopeChoices
+              question={`“${pendingMove.event.title}” se repite. ¿Qué repeticiones mueves?`}
+              allowThis
+              allowFollowing={pendingMove.event.startsAt !== pendingMove.event.seriesStartsAt}
+              onChoose={(scope) => void applyMove(scope)}
+              onCancel={() => void applyMove(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {editing && <EventDialog key={editing.event ? `${editing.event.id}-${editing.event.startsAt}` : "new"} event={editing.event} draft={editing.draft} onClose={() => setEditing(null)} />}
     </div>

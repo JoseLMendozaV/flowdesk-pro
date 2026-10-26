@@ -73,6 +73,8 @@ export const tasks = taskSeeds.map((seed) => {
     projectColor: project?.color ?? null,
     dueAt: seed.due,
     dueHasTime: seed.hasTime,
+    // «Planificar las prácticas» se puede empezar dentro de dos días.
+    startsAt: seed.id === "k7" ? noon(2) : null,
     completedAt: seed.completed ? at(0, 9, 40) : null,
     createdAt: now - 5 * DAY,
     updatedAt: now - 3600,
@@ -176,6 +178,7 @@ export const events = [
   { id: "e3", title: "Clase de Programación", day: 2, start: [9, 0], end: [11, 0], project: "p-course", location: "Aula 3", weekly: true },
   { id: "e4", title: "Revisión del panel", day: -1, start: [12, 0], end: [13, 0], project: "p-app", location: null },
   { id: "e5", title: "Llamada con el congreso", day: 3, start: [16, 30], end: [17, 0], project: "p-paper", location: null },
+  { id: "e6", title: "Revisión de prácticas", day: 0, start: [13, 0], end: [14, 0], project: "p-course", location: null },
 ].map((event) => {
   const project = projectById[event.project];
   return {

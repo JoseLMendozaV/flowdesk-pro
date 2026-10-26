@@ -8,7 +8,7 @@ Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se de
 
 - ventana principal con dashboard conectado a datos reales;
 - SQLite local con migración versionada, claves foráneas, índices y modo WAL;
-- tareas con subtareas, etiquetas, prioridades, fechas con o sin hora, filtros, búsqueda y vistas Hoy/Próximas/Todas/Completadas;
+- tareas con subtareas, etiquetas, prioridades, fechas con o sin hora, fecha de inicio (no aparecen en Hoy hasta ese día), filtros, búsqueda y vistas Hoy/Próximas/Todas/Completadas;
 - tareas y eventos que se repiten (cada día, laborables, semanal, mensual, anual o personalizado; en tareas, también desde que se completan), con «solo este / este y los siguientes / todos» en los eventos;
 - papelera de tareas, proyectos y eventos con «Deshacer» (o ⌘Z) al borrar y restauración completa durante 30 días;
 - paleta de comandos (⌘K) para buscar tareas, proyectos y notas, ir a cualquier sección, cambiar de espacio y crear o empezar algo;
@@ -17,7 +17,7 @@ Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se de
 - vínculos entre tareas, notas y proyectos;
 - Pomodoro y cronómetro gestionados por Rust, resistentes al reposo del Mac y a cambios de hora;
 - estadísticas de tiempo por día, semana y proyecto, y avisos locales;
-- atajos globales ⌥N, ⌥⇧T, ⌥⇧F y ⌥⇧P, y tiempo restante junto al icono de la barra de menú;
+- atajos globales ⌥N, ⌥⇧T, ⌥⇧F y ⌥⇧P, y junto al icono de la barra de menú el tiempo restante o el próximo evento («Tutoría en 12 min»);
 - estado compartido de interfaz con Zustand;
 - tema claro/oscuro sincronizado con macOS;
 - panel compacto conectado a datos reales y anclado al icono de la barra de menú;
@@ -26,7 +26,7 @@ Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se de
 - protección de instancia única;
 - restauración de tamaño y posición de la ventana principal;
 - inicio opcional con macOS mediante LaunchAgent y modo de inicio oculto;
-- calendario con vistas de día, semana y mes, eventos y tareas colocadas a su hora con su duración estimada (las que no tienen hora, a una hora por defecto configurable);
+- calendario con vistas de día, semana y mes, eventos y tareas colocadas a su hora con su duración estimada (las que no tienen hora, a una hora por defecto configurable), que se mueven arrastrándolos y se alargan estirándolos;
 - recordatorios de tareas, eventos y notas, resumen diario y horas de silencio, sin duplicados y resistentes al reposo;
 - espacios de trabajo que filtran tareas, proyectos, notas y agenda, y abren sus carpetas y apps;
 - historial del portapapeles opcional, con exclusiones y detección conservadora de credenciales;
@@ -120,7 +120,7 @@ El script sube la versión en `package.json`, `Cargo.toml`, `Cargo.lock` y `taur
 
 ## Datos locales
 
-La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, la novena guarda las preferencias y el progreso de la bienvenida, la décima añade el contenido enriquecido de las notas, sus versiones, adjuntos y contextos sin convertir las notas existentes, y la undécima añade las reglas de repetición de tareas y eventos y la papelera. Los adjuntos viven en `note-attachments/` dentro del mismo directorio; SQLite solo guarda su referencia. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
+La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, la novena guarda las preferencias y el progreso de la bienvenida, la décima añade el contenido enriquecido de las notas, sus versiones, adjuntos y contextos sin convertir las notas existentes, la undécima añade las reglas de repetición de tareas y eventos y la papelera, y la duodécima la fecha de inicio de las tareas y la antelación del próximo evento en la barra de menús. Los adjuntos viven en `note-attachments/` dentro del mismo directorio; SQLite solo guarda su referencia. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
 
 - `foreign_keys = ON`;
 - `journal_mode = WAL`;
@@ -147,6 +147,7 @@ No hay telemetría ni servicios remotos obligatorios.
 - [Estado de la Fase 6](docs/PHASE_06.md)
 - [Estado de la Fase 7: notas flotantes 2.0](docs/PHASE_07.md)
 - [Repeticiones, papelera y paleta de comandos (0.6.0)](docs/MEJORAS_0.6.md)
+- [Arrastrar en el calendario, fecha de inicio y próximo evento (0.7.0)](docs/MEJORAS_0.7.md)
 - [Bienvenida, recorrido y novedades](docs/ONBOARDING.md)
 
 Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/).

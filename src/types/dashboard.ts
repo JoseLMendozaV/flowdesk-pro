@@ -49,6 +49,8 @@ export type DashboardSummary = {
 export type TrayPreferences = {
   launchAtLogin: boolean;
   launchHidden: boolean;
+  /** Minutos antes de un evento en que se anuncia junto al icono; 0 = nunca. */
+  nextEventMinutes: number;
 };
 
 export type NoteWindow = {

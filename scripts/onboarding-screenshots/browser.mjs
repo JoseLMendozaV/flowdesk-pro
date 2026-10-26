@@ -116,6 +116,19 @@ async function openPage(client, query, { width = 900, height = 620, scale = 1, s
       }
       await delay(120);
     },
+    /** Arrastre real del ratón entre dos puntos de la página, en varios pasos. */
+    async drag(from, to, steps = 8) {
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x, y: from.y });
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", clickCount: 1 });
+      for (let step = 1; step <= steps; step += 1) {
+        const x = from.x + ((to.x - from.x) * step) / steps;
+        const y = from.y + ((to.y - from.y) * step) / steps;
+        await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "left", buttons: 1 });
+        await delay(16);
+      }
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: to.x, y: to.y, button: "left", clickCount: 1 });
+      await delay(150);
+    },
     /** Texto escrito como lo haría el teclado, en el elemento con el foco. */
     async type(text) {
       await send("Input.insertText", { text });

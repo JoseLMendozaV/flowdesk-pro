@@ -20,6 +20,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         11,
         include_str!("../../migrations/0011_recurrence_trash.sql"),
     ),
+    (
+        12,
+        include_str!("../../migrations/0012_start_dates_tray_events.sql"),
+    ),
 ];
 
 #[cfg(test)]

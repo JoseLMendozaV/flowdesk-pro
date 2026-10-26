@@ -21,6 +21,8 @@ export type TaskSummary = {
   projectColor: string | null;
   dueAt: number | null;
   dueHasTime: boolean;
+  /** Día desde el que se puede empezar (mediodía local); hasta entonces no está en Hoy. */
+  startsAt: number | null;
   completedAt: number | null;
   createdAt: number;
   updatedAt: number;
@@ -63,6 +65,8 @@ export type TaskInput = {
   priority?: TaskPriority;
   dueAt?: number | null;
   dueHasTime?: boolean;
+  /** Solo cuenta el día; no puede ser posterior a la fecha límite. */
+  startsAt?: number | null;
   projectId?: string | null;
   estimatedMinutes?: number | null;
   tags?: string[];

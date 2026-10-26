@@ -68,9 +68,10 @@ export const FEATURES: FeatureDefinition[] = [
     category: "organization",
     phase: 4,
     introducedInVersion: "0.1.0",
-    revision: 2,
+    revision: 3,
     updates: [
       { revision: 2, version: "0.6.0", summary: "Tareas que se repiten: cada día, los laborables, cada semana, mes o año, o un tiempo después de completarlas." },
+      { revision: 3, version: "0.7.0", summary: "Fecha de inicio: una tarea no aparece en Hoy hasta el día en que se puede empezar." },
     ],
     implemented: true,
     verified: true,
@@ -85,6 +86,7 @@ export const FEATURES: FeatureDefinition[] = [
       "Prioridad, fecha límite con o sin hora, proyecto, etiquetas y tiempo estimado.",
       "Subtareas que se completan por separado.",
       "Repeticiones: al completar una tarea que se repite aparece la siguiente, con sus subtareas por hacer.",
+      "Fecha de inicio opcional: hasta ese día la tarea espera en Próximas y no llena Hoy.",
       "Lista o Kanban: arrastra entre columnas o usa los botones ◀ ▶.",
       "Búsqueda en título, descripción y etiquetas, con filtros y orden.",
     ],
@@ -296,10 +298,11 @@ export const FEATURES: FeatureDefinition[] = [
     category: "organization",
     phase: 6,
     introducedInVersion: "0.2.0",
-    revision: 3,
+    revision: 4,
     updates: [
       { revision: 2, version: "0.5.0", summary: "Las tareas aparecen en la cuadrícula a su hora y con su duración estimada; las que no tienen hora, a la hora que elijas." },
       { revision: 3, version: "0.6.0", summary: "Eventos que se repiten; al cambiar o borrar uno eliges solo ese, ese y los siguientes, o todos." },
+      { revision: 4, version: "0.7.0", summary: "Arrastra eventos y tareas para cambiarlos de hora o de día, y estira su borde inferior para cambiar la duración." },
     ],
     implemented: true,
     verified: true,
@@ -312,6 +315,7 @@ export const FEATURES: FeatureDefinition[] = [
     highlights: [
       "Vistas de día, semana y mes.",
       "Pulsa una franja para crear un evento a esa hora, o un día para uno de todo el día.",
+      "Arrastra un evento o una tarea para moverlo de hora o de día; estira su borde inferior para cambiar la duración.",
       "Eventos con notas, ubicación, proyecto y aviso.",
       "Eventos que se repiten; al cambiar o borrar una repetición eliges solo esa, esa y las siguientes, o todas.",
       "Las tareas se ven a su hora con la duración estimada; las que no tienen hora, a la hora por defecto que elijas o en «Todo el día».",
@@ -334,7 +338,7 @@ export const FEATURES: FeatureDefinition[] = [
       { id: "calendar.nav", target: "nav-calendar", section: "calendar", title: "Calendario", body: "Eventos y fechas límite de tus tareas en un mismo lugar." },
       { id: "calendar.modes", target: "calendar-modes", section: "calendar", title: "Día, semana o mes", body: "También con las teclas D, S y M." },
       { id: "calendar.navigation", target: "calendar-navigation", section: "calendar", title: "Moverte por las fechas", body: "Usa ← y →, o Hoy (tecla T) para volver." },
-      { id: "calendar.grid", target: "calendar-grid", section: "calendar", title: "Eventos y tareas", body: "Pulsa una franja horaria para crear un evento. Las tareas aparecen a su hora con su duración estimada." },
+      { id: "calendar.grid", target: "calendar-grid", section: "calendar", title: "Eventos y tareas", body: "Pulsa una franja horaria para crear un evento. Arrastra un bloque para moverlo o estira su borde inferior para cambiar su duración." },
       { id: "calendar.untimed", target: "calendar-untimed", section: "calendar", title: "Tareas sin hora", body: "Elige a qué hora se muestran las tareas que solo tienen fecha, o déjalas en «Todo el día»." },
     ],
   },
@@ -428,9 +432,10 @@ export const FEATURES: FeatureDefinition[] = [
     category: "macos",
     phase: 2,
     introducedInVersion: "0.1.0",
-    revision: 2,
+    revision: 3,
     updates: [
       { revision: 2, version: "0.2.0", summary: "Cambio de espacio de trabajo y acceso a la agenda desde el panel." },
+      { revision: 3, version: "0.7.0", summary: "El próximo evento junto al icono: «Tutoría en 12 min»." },
     ],
     implemented: true,
     verified: true,
@@ -442,6 +447,7 @@ export const FEATURES: FeatureDefinition[] = [
     tone: "slate",
     highlights: [
       "Clic en el icono: panel con tus tareas, el Pomodoro y el próximo evento.",
+      "Junto al icono, el próximo evento con hora («Tutoría en 12 min»); el temporizador tiene prioridad.",
       "Captura rápida de tareas y nueva nota desde el panel.",
       "Iniciar o pausar el Pomodoro y cambiar de espacio.",
       "Clic derecho: menú con Abrir, Nueva tarea, Nueva nota, Ayuda y Salir.",
@@ -450,7 +456,7 @@ export const FEATURES: FeatureDefinition[] = [
     example: "Cierra la ventana al terminar el día: el Pomodoro y los avisos siguen, y el icono te devuelve a FlowDesk.",
     tips: [
       "Cerrar la ventana (botón rojo o ⌘W) la oculta. «Salir de FlowDesk» o ⌘Q cierran la app.",
-      "Configura el inicio con macOS en Configuración.",
+      "Configura el inicio con macOS y la antelación del próximo evento en Configuración.",
     ],
     shortcuts: ["open"],
     image: screenshot(
