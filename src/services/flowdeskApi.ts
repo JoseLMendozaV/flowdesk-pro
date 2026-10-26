@@ -24,6 +24,12 @@ import type {
   TimerSnapshot,
 } from "../types/focus";
 import type {
+  OnboardingEvent,
+  OnboardingMode,
+  OnboardingPreferences,
+  OnboardingState,
+} from "../types/onboarding";
+import type {
   ProjectDeleteMode,
   ProjectInput,
   ProjectSummary,
@@ -136,6 +142,23 @@ export const flowdeskApi = {
   appUsage: () => invoke<AppUsageReport>("get_app_usage"),
   excludeTrackingApp: (path: string) => invoke<AppTrackingSettings>("exclude_tracking_app", { path }),
   clearAppTracking: () => invoke<void>("clear_app_tracking"),
+  onboarding: () => invoke<OnboardingState>("get_onboarding_state"),
+  updateOnboardingPreferences: (preferences: OnboardingPreferences) =>
+    invoke<OnboardingState>("update_onboarding_preferences", { preferences }),
+  recordOnboardingStep: (stepId: string | null) => invoke<void>("record_onboarding_step", { stepId }),
+  finishWelcome: (outcome: "completed" | "skipped") =>
+    invoke<OnboardingState>("finish_welcome_onboarding", { outcome }),
+  markFeaturesSeen: (features: Record<string, number>, revision: string) =>
+    invoke<OnboardingState>("mark_features_seen", { features, revision }),
+  recordOnboardingEvent: (event: OnboardingEvent, detail?: string) =>
+    invoke<void>("record_onboarding_event", { event, detail: detail ?? null }),
+  resetOnboarding: () => invoke<OnboardingState>("reset_onboarding"),
+  openOnboarding: (mode: OnboardingMode, featureId?: string) =>
+    invoke<void>("open_onboarding", { mode, featureId: featureId ?? null }),
+  closeOnboarding: () => invoke<void>("close_onboarding"),
+  /** Con `returnMode`, la guía vuelve a abrirse en esa función al terminar la visita. */
+  startGuidedTour: (featureId?: string, returnMode?: OnboardingMode) =>
+    invoke<void>("start_guided_tour", { featureId: featureId ?? null, returnMode: returnMode ?? null }),
   openMain: (section?: "dashboard" | "tasks" | "projects" | "notes" | "focus" | "time" | "calendar" | "workspaces" | "clipboard" | "settings") =>
     invoke<void>("open_main_window", { section: section ?? null }),
   hideTrayPanel: () => invoke<void>("hide_tray_panel"),

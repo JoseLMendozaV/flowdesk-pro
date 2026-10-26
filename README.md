@@ -31,6 +31,7 @@ Las Fases 1 a 6 están implementadas. Algunas integraciones de macOS conservan c
 - notas flotantes independientes con guardado automático, Markdown básico y restauración;
 - colores, transparencia, tamaño de texto, colapso y nivel de ventana por nota;
 - atajo global `Option + N` y conversión de texto seleccionado en tarea;
+- bienvenida, recorrido con capturas reales y demostraciones, visita guiada sobre la interfaz y novedades tras cada actualización, generados a partir de un registro de funcionalidades verificadas;
 - bundles `.app` y `.dmg` para Apple Silicon.
 
 Solo la sección IA local (Fase 8) aparece desactivada de forma explícita; no hay datos simulados.
@@ -58,6 +59,14 @@ Comprobaciones:
 npm run check
 npm run build
 npm run test:rust
+npm run test:onboarding
+npm run test:onboarding-ui   # flujos de la guía en Chrome sin interfaz
+```
+
+Regenerar las capturas de la guía tras cambiar la interfaz (Chrome sin interfaz, datos de demostración):
+
+```bash
+npm run onboarding:screenshots
 ```
 
 Generar la aplicación y el instalador:
@@ -107,7 +116,7 @@ El script sube la versión en `package.json`, `Cargo.toml`, `Cargo.lock` y `taur
 
 ## Datos locales
 
-La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
+La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, y la novena guarda las preferencias y el progreso de la bienvenida. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
 
 - `foreign_keys = ON`;
 - `journal_mode = WAL`;
@@ -132,5 +141,6 @@ No hay telemetría ni servicios remotos obligatorios.
 - [Estado de la Fase 4 y correcciones de las Fases 1–3](docs/PHASE_04.md)
 - [Estado de la Fase 5](docs/PHASE_05.md)
 - [Estado de la Fase 6](docs/PHASE_06.md)
+- [Bienvenida, recorrido y novedades](docs/ONBOARDING.md)
 
 Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/), [WidgetKit](https://developer.apple.com/documentation/widgetkit).

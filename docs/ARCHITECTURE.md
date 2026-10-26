@@ -31,7 +31,7 @@ Reglas de eliminación (los recordatorios se borran con su entidad mediante disp
 - Proyecto: el usuario elige conservar las tareas (`SET NULL`) o borrarlas. Notas, sesiones y registros de tiempo nunca se borran. Archivar (`archived_at`) es la alternativa no destructiva y conserva el estado previo.
 - Nota: borra su ventana y sus vínculos con tareas; las tareas se conservan.
 
-Las ventanas comunican cambios mediante el evento `flowdesk://data-changed` con el tipo afectado (`tasks`, `projects`, `notes`, `time`, `calendar`, `reminders`, `workspaces`, `clipboard`, `app-usage`); cada vista vuelve a consultar solo lo que muestra. El servicio de recordatorios escucha el mismo evento en Rust.
+Las ventanas comunican cambios mediante el evento `flowdesk://data-changed` con el tipo afectado (`tasks`, `projects`, `notes`, `time`, `calendar`, `reminders`, `workspaces`, `clipboard`, `app-usage`, `onboarding`); cada vista vuelve a consultar solo lo que muestra. El servicio de recordatorios escucha el mismo evento en Rust.
 
 ### Espacios de trabajo
 
@@ -67,6 +67,10 @@ El contenido se guarda mediante un comando tipado después de 650 ms sin cambios
 
 Los niveles disponibles son normal, siempre encima y siempre debajo. El último usa `always_on_bottom`; no modifica niveles privados de AppKit ni promete quedar anclado debajo de los iconos del Finder.
 
+## Bienvenida y novedades
+
+La ventana `onboarding` (una sola instancia, creada al pedirla) presenta las funciones a partir del registro de `src/features/onboarding/registry/`. Una función solo aparece si el registro la marca como implementada, verificada y habilitada **y** Rust declara sus capacidades (`commands/onboarding.rs`). La fase no interviene. Las preferencias, lo que el usuario ya conoce (`{ id: revisión }`) y el progreso viven en `onboarding_state`. La ventana principal decide al hacerse visible si abre la bienvenida o las novedades, así que un inicio oculto con macOS nunca abre ventanas. La visita guiada resalta elementos con `data-tour-id` estables. Detalles en `docs/ONBOARDING.md`.
+
 ## Seguridad
 
-La capability inicial se limita a `core:default`. Las ventanas de notas y la principal pueden moverse (`window-dragging`); solo la principal busca actualizaciones (`updates`) y abre el selector de archivos (`dialogs`). La política CSP restringe recursos a la aplicación y a los canales IPC/asset de Tauri. Cada módulo futuro deberá declarar únicamente los permisos que necesite.
+La capability inicial se limita a `core:default`. Las ventanas de notas, la principal y la de bienvenida pueden moverse (`window-dragging`); solo la principal busca actualizaciones (`updates`) y abre el selector de archivos (`dialogs`). La política CSP restringe recursos a la aplicación y a los canales IPC/asset de Tauri. Cada módulo futuro deberá declarar únicamente los permisos que necesite.

@@ -4,6 +4,7 @@ mod app_tracking;
 mod calendar;
 mod clipboard;
 mod focus;
+mod onboarding;
 mod projects;
 mod tasks;
 mod workspaces;
@@ -17,6 +18,7 @@ pub use focus::{
     ActiveEntry, ActivePomodoro, DayStat, EntryInput, FocusSession, PomodoroSettings, ProjectTime,
     StartPomodoro, TimeEntry, TimeStats, TimerSnapshot, WorkContext,
 };
+pub use onboarding::{OnboardingPreferences, OnboardingState};
 pub use projects::{ProjectDeleteMode, ProjectInput, ProjectSummary};
 pub use tasks::{
     LinkedNote, Subtask, Tag, TaskDetail, TaskFilter, TaskInput, TaskSort, TaskSummary, TaskView,

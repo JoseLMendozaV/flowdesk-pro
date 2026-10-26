@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { Bell, Download, Keyboard, LoaderCircle, Power, X } from "lucide-react";
 import { minutesLabel } from "../calendar/calendarDates";
+import { OnboardingSettings } from "../onboarding/components/OnboardingSettings";
 import { useUpdateStore } from "../updates/updateStore";
 import { flowdeskApi } from "../../services/flowdeskApi";
 import { useAppStore } from "../../stores/appStore";
@@ -139,6 +140,7 @@ export function PreferencesDialog() {
   const open = useAppStore((state) => state.preferencesOpen);
   const close = useAppStore((state) => state.closePreferences);
   const [preferences, setPreferences] = useState(initialPreferences);
+  const [storedPreferences, setStoredPreferences] = useState(initialPreferences);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +153,7 @@ export function PreferencesDialog() {
     void Promise.all([flowdeskApi.trayPreferences(), flowdeskApi.shortcutStatus()])
       .then(([trayPreferences, shortcutStatus]) => {
         setPreferences(trayPreferences);
+        setStoredPreferences(trayPreferences);
         setShortcuts(shortcutStatus);
       })
       .catch((reason) => setError(String(reason)))
@@ -233,6 +236,11 @@ export function PreferencesDialog() {
             <RemindersSection />
 
             <UpdatesSection />
+
+            <OnboardingSettings
+              canLeave={preferences.launchAtLogin === storedPreferences.launchAtLogin && preferences.launchHidden === storedPreferences.launchHidden}
+              onLeave={close}
+            />
 
             {shortcuts.length > 0 && (
               <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] p-3.5">

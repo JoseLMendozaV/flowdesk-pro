@@ -104,7 +104,7 @@ export function TaskWorkspace({ view, onViewChange, projects, fixedProjectId }: 
     <div className={`grid min-h-0 flex-1 ${selectedId ? "grid-cols-[minmax(0,1fr)_340px]" : "grid-cols-1"}`}>
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] px-6 py-3">
-          <div role="tablist" aria-label="Vista de tareas" className="flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
+          <div role="tablist" aria-label="Vista de tareas" data-tour-id="tasks-views" className="flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
             {viewOptions.map((option) => (
               <button
                 key={option.value}
@@ -122,7 +122,7 @@ export function TaskWorkspace({ view, onViewChange, projects, fixedProjectId }: 
             <Search className="size-3.5 flex-none text-[var(--muted)]" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} maxLength={200} placeholder="Buscar en título, descripción o etiquetas…" aria-label="Buscar tareas" className="min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-[var(--muted)]" />
           </label>
-          <div className="flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5" role="group" aria-label="Disposición">
+          <div className="flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5" role="group" aria-label="Disposición" data-tour-id="tasks-layout">
             <button type="button" onClick={() => setLayout("list")} aria-pressed={layout === "list"} aria-label="Vista de lista" title="Lista" className={`grid size-7 place-items-center rounded-md ${layout === "list" ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "text-[var(--muted)]"}`}>
               <List className="size-3.5" />
             </button>
@@ -132,7 +132,7 @@ export function TaskWorkspace({ view, onViewChange, projects, fixedProjectId }: 
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 px-6 pt-3">
+        <div data-tour-id="tasks-filters" className="flex flex-wrap items-center gap-2 px-6 pt-3">
           {!fixedProjectId && (
             <select value={projectId} onChange={(event) => setProjectId(event.target.value)} aria-label="Filtrar por proyecto" className={selectClass}>
               <option value="">Todos los proyectos</option>
@@ -166,7 +166,7 @@ export function TaskWorkspace({ view, onViewChange, projects, fixedProjectId }: 
           </span>
         </div>
 
-        <form onSubmit={(event) => void createTask(event)} className="mx-6 mt-3 flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 focus-within:border-[var(--accent)]">
+        <form onSubmit={(event) => void createTask(event)} data-tour-id="tasks-composer" className="mx-6 mt-3 flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 focus-within:border-[var(--accent)]">
           <Plus className="size-4 flex-none text-[var(--accent)]" />
           <input
             ref={composerRef}

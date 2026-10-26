@@ -1,6 +1,7 @@
 mod background;
 mod commands;
 mod database;
+mod menu;
 mod models;
 mod shortcuts;
 mod tray;
@@ -32,6 +33,8 @@ pub(crate) fn prepare_exit(app: &AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .menu(menu::build)
+        .on_menu_event(menu::handle_event)
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             windows::show_main_window(app);
         }))
@@ -97,6 +100,9 @@ pub fn run() {
             }
             ("tray-panel", WindowEvent::Focused(false)) => {
                 windows::hide_tray_panel_on_blur(window.app_handle());
+            }
+            (windows::onboarding::LABEL, WindowEvent::Destroyed) => {
+                windows::onboarding::on_destroyed(window.app_handle());
             }
             _ => {}
         })
@@ -184,6 +190,16 @@ pub fn run() {
             commands::app_tracking::get_app_usage,
             commands::app_tracking::exclude_tracking_app,
             commands::app_tracking::clear_app_tracking,
+            commands::onboarding::get_onboarding_state,
+            commands::onboarding::update_onboarding_preferences,
+            commands::onboarding::record_onboarding_step,
+            commands::onboarding::finish_welcome_onboarding,
+            commands::onboarding::mark_features_seen,
+            commands::onboarding::record_onboarding_event,
+            commands::onboarding::reset_onboarding,
+            commands::onboarding::open_onboarding,
+            commands::onboarding::close_onboarding,
+            commands::onboarding::start_guided_tour,
             shortcuts::get_shortcut_status,
         ]);
 

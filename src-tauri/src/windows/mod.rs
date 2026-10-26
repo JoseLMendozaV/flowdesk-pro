@@ -14,6 +14,7 @@ static TRAY_PANEL_BLURRED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 const TRAY_REOPEN_GUARD: Duration = Duration::from_millis(300);
 
 pub mod notes;
+pub mod onboarding;
 
 /// Informa a una ventana de si el usuario puede verla. Las ventanas ocultas aplazan
 /// sus actualizaciones: WebKit mantiene un display link a la frecuencia del monitor

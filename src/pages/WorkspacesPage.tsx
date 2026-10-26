@@ -229,12 +229,12 @@ export function WorkspacesPage() {
           <h1 className="text-lg font-semibold tracking-[-0.025em]">Espacios de trabajo</h1>
           <p className="mt-0.5 text-[11px] text-[var(--muted)]">Perfiles que filtran tareas, proyectos, notas y agenda sin duplicar datos</p>
         </div>
-        <button type="button" onClick={() => setCreating(true)} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm hover:brightness-105">
+        <button type="button" data-tour-id="workspaces-new" onClick={() => setCreating(true)} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm hover:brightness-105">
           <Plus className="size-3.5" /> Nuevo espacio
         </button>
       </header>
 
-      <div className="p-6">
+      <div data-tour-id="workspaces-list" className="p-6">
         {error && <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-xs text-red-500">{error}</div>}
         {workspaces.length === 0 ? (
           <div className="grid min-h-80 place-items-center rounded-2xl border border-dashed border-[var(--line)] text-center">

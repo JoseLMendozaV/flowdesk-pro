@@ -14,7 +14,13 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (6, include_str!("../../migrations/0006_workspaces.sql")),
     (7, include_str!("../../migrations/0007_clipboard.sql")),
     (8, include_str!("../../migrations/0008_app_tracking.sql")),
+    (9, include_str!("../../migrations/0009_onboarding.sql")),
 ];
+
+#[cfg(test)]
+pub fn migrations() -> &'static [(i64, &'static str)] {
+    MIGRATIONS
+}
 
 pub struct Database {
     connection: Mutex<Connection>,

@@ -64,7 +64,7 @@ export function TimePage() {
       </header>
 
       <div className="space-y-5 p-6">
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]" aria-label="Cronómetro manual">
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]" aria-label="Cronómetro manual" data-tour-id="time-stopwatch">
           {entry ? (
             <div className="flex items-center gap-5">
               <div className={`grid size-12 flex-none place-items-center rounded-2xl ${entry.status === "running" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--inset)] text-[var(--muted)]"}`}>
@@ -111,7 +111,7 @@ export function TimePage() {
 
         {stats && (
           <>
-            <section aria-label="Resumen" className="grid grid-cols-4 gap-3">
+            <section aria-label="Resumen" data-tour-id="time-summary" className="grid grid-cols-4 gap-3">
               <MetricCard label="Registrado hoy" value={formatDuration(stats.todayTrackedSeconds)} hint="Manual y Pomodoro" icon={Clock3} tone="blue" />
               <MetricCard label="Concentración hoy" value={formatDuration(stats.todayFocusSeconds)} hint={`${stats.focusSessionsToday} sesiones completadas`} icon={Target} tone="orange" />
               <MetricCard label="Registrado esta semana" value={formatDuration(stats.weekTrackedSeconds)} hint="De lunes a hoy" icon={CalendarRange} tone="blue" />

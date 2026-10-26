@@ -1,0 +1,113 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { FEATURES } from "./features.ts";
+import {
+  availableFeatures,
+  featureRevision,
+  needsSetup,
+  registryProblems,
+  releaseNotes,
+  revisionMap,
+  tourSteps,
+  whatsNew,
+} from "./registry.ts";
+import type { FeatureDefinition } from "./types.ts";
+
+// Capacidades que declara hoy `commands/onboarding.rs` (sin la extensión de widgets).
+const CURRENT = [
+  "dashboard", "tasks", "projects", "notes", "global-shortcuts", "pomodoro", "time-tracking",
+  "app-tracking", "calendar", "reminders", "workspaces", "clipboard", "menu-bar", "updates",
+];
+
+function feature(overrides: Partial<FeatureDefinition>): FeatureDefinition {
+  return {
+    id: "demo",
+    title: "Demo",
+    summary: "",
+    description: "",
+    category: "tools",
+    phase: 1,
+    introducedInVersion: "0.1.0",
+    revision: 1,
+    implemented: true,
+    verified: true,
+    enabled: true,
+    onboardingEnabled: true,
+    requires: ["demo"],
+    order: 1,
+    icon: "home",
+    tone: "blue",
+    highlights: ["Algo"],
+    example: "Ejemplo",
+    tips: [],
+    animation: "tasks",
+    ...overrides,
+  };
+}
+
+test("el registro no tiene errores de mantenimiento", () => {
+  assert.deepEqual(registryProblems(), []);
+});
+
+test("solo se presentan las funciones operativas de hoy, sin widgets ni IA", () => {
+  const ids = availableFeatures(CURRENT).map((item) => item.id);
+  assert.deepEqual(ids, [
+    "dashboard", "tasks", "projects", "notes", "pomodoro", "time", "calendar", "workspaces", "clipboard", "menu-bar",
+  ]);
+});
+
+test("una función incompleta, sin verificar o deshabilitada no aparece", () => {
+  const registry = [
+    feature({ id: "ok" }),
+    feature({ id: "unfinished", implemented: false, verified: false }),
+    feature({ id: "unverified", verified: false }),
+    feature({ id: "disabled", enabled: false }),
+    feature({ id: "hidden", onboardingEnabled: false }),
+    feature({ id: "unreleased", introducedInVersion: null }),
+  ];
+  assert.deepEqual(availableFeatures(["demo"], registry).map((item) => item.id), ["ok"]);
+});
+
+test("la capacidad de Rust es obligatoria aunque el registro diga que está lista", () => {
+  const widgets = FEATURES.find((item) => item.id === "widgets")!;
+  const finished = { ...widgets, implemented: true, verified: true, introducedInVersion: "0.3.0", highlights: ["x"], example: "x", animation: "tasks" as const };
+  assert.equal(availableFeatures(CURRENT, [finished]).length, 0);
+  assert.equal(availableFeatures([...CURRENT, "widgets"], [finished]).length, 1);
+});
+
+test("las novedades distinguen funciones nuevas y mejoradas y no se repiten", () => {
+  const before = [feature({ id: "tasks" }), feature({ id: "notes" })];
+  const seen = revisionMap(before);
+  const after = [
+    feature({ id: "tasks" }),
+    feature({ id: "notes", revision: 2, updates: [{ revision: 2, version: "0.3.0", summary: "Recordatorios" }] }),
+    feature({ id: "widgets", introducedInVersion: "0.3.0" }),
+  ];
+  const news = whatsNew(after, seen);
+  assert.deepEqual(news.map((entry) => [entry.feature.id, entry.kind]), [["notes", "improved"], ["widgets", "new"]]);
+  assert.equal(news[0].changes[0].summary, "Recordatorios");
+  assert.deepEqual(whatsNew(after, { ...seen, ...revisionMap(after) }), []);
+});
+
+test("la huella cambia con funciones nuevas o revisiones, no con el orden", () => {
+  const one = [feature({ id: "a" }), feature({ id: "b" })];
+  assert.equal(featureRevision(one), featureRevision([...one].reverse()));
+  assert.notEqual(featureRevision(one), featureRevision([...one, feature({ id: "c" })]));
+  assert.notEqual(featureRevision(one), featureRevision([feature({ id: "a", revision: 2 }), feature({ id: "b" })]));
+});
+
+test("el historial por versión empieza por la más reciente", () => {
+  const notes = releaseNotes(availableFeatures(CURRENT));
+  assert.deepEqual(notes.map((entry) => entry.version), ["0.2.0", "0.1.0"]);
+  assert.ok(notes[0].added.some((item) => item.id === "calendar"));
+  assert.ok(notes[0].improved.some((item) => item.feature.id === "time"));
+});
+
+test("los pasos de la visita llevan su función y una IA sin modelo pide configuración", () => {
+  const steps = tourSteps(availableFeatures(CURRENT));
+  assert.equal(steps[0].featureId, "dashboard");
+  assert.equal(new Set(steps.map((step) => step.id)).size, steps.length);
+  const ai = FEATURES.find((item) => item.id === "local-ai")!;
+  assert.match(needsSetup(ai, ["local-ai"]) ?? "", /configuración adicional/);
+  assert.equal(needsSetup(ai, ["local-ai", "local-ai:model"]), null);
+});

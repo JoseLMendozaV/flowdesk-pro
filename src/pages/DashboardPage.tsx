@@ -60,7 +60,7 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
 
   return (
     <div className="space-y-5">
-      <section aria-label="Métricas diarias" className="grid grid-cols-4 gap-3">
+      <section aria-label="Métricas diarias" data-tour-id="dashboard-metrics" className="grid grid-cols-4 gap-3">
         <MetricCard
           label="Tareas de hoy"
           value={data.todayTasks}
@@ -92,7 +92,7 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
       </section>
 
       <section className="grid grid-cols-[minmax(0,1.45fr)_minmax(220px,.8fr)] gap-4">
-        <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]">
+        <article data-tour-id="dashboard-upcoming" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold tracking-[-0.01em]">Próximas tareas</h2>
@@ -182,7 +182,7 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
         </article>
       </section>
 
-      <section>
+      <section data-tour-id="dashboard-quick-actions">
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold">Acciones rápidas</h2>
@@ -241,7 +241,7 @@ function RemindersList() {
 function RightPanel({ data }: { data: DashboardSummary }) {
   const selectSection = useAppStore((state) => state.selectSection);
   return (
-    <aside className="overflow-y-auto border-l border-[var(--line)] bg-[var(--panel)] px-4 pb-5 pt-5">
+    <aside data-tour-id="dashboard-side-panel" className="overflow-y-auto border-l border-[var(--line)] bg-[var(--panel)] px-4 pb-5 pt-5">
       <section>
         <div className="mb-3 flex items-center gap-2">
           <CalendarClock className="size-3.5 text-[var(--accent)]" />

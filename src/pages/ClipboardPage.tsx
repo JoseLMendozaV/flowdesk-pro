@@ -149,12 +149,12 @@ export function ClipboardPage() {
       {error && <div className="mx-6 mt-3 rounded-xl bg-red-500/10 px-4 py-2 text-xs text-red-500">{error}</div>}
 
       {!settings.enabled && items.length === 0 ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-6">
+        <div data-tour-id="clipboard-consent" className="min-h-0 flex-1 overflow-y-auto px-6">
           <ConsentCard onEnable={() => void run(() => saveSettings({ ...settings, enabled: true, paused: false }))} />
         </div>
       ) : (
         <>
-          <div className="flex flex-none items-center gap-2 px-6 py-3">
+          <div data-tour-id="clipboard-search" className="flex flex-none items-center gap-2 px-6 py-3">
             <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 focus-within:border-[var(--accent)]">
               <Search className="size-3.5 text-[var(--muted)]" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} maxLength={200} placeholder="Buscar en el historial…" aria-label="Buscar en el historial" className="min-w-0 flex-1 bg-transparent text-[11px] outline-none" />
@@ -191,7 +191,7 @@ export function ClipboardPage() {
                 </div>
               </div>
             ) : (
-              <ul className="space-y-1.5" aria-label="Historial del portapapeles">
+              <ul className="space-y-1.5" aria-label="Historial del portapapeles" data-tour-id="clipboard-history">
                 {items.map((item) => {
                   const when = describeDue(item.createdAt, true).label;
                   return (

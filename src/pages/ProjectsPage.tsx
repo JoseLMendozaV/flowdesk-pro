@@ -175,12 +175,12 @@ export function ProjectsPage() {
           <h1 className="text-lg font-semibold tracking-[-0.025em]">Proyectos</h1>
           <p className="mt-0.5 text-[11px] text-[var(--muted)]">Agrupa tareas, notas y tiempo por objetivo</p>
         </div>
-        <button type="button" onClick={() => setCreating(true)} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm hover:brightness-105">
+        <button type="button" data-tour-id="projects-new" onClick={() => setCreating(true)} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm hover:brightness-105">
           <Plus className="size-3.5" /> Nuevo proyecto
         </button>
       </header>
 
-      <div className="p-6">
+      <div data-tour-id="projects-list" className="p-6">
         {archivedCount > 0 && (
           <label className="mb-4 flex cursor-pointer items-center gap-2 text-[11px] text-[var(--muted)]">
             <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} className="accent-[var(--accent)]" />

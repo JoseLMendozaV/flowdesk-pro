@@ -39,7 +39,7 @@ export function WorkspaceSwitcher() {
   }
 
   return (
-    <div ref={containerRef} className="relative mb-4">
+    <div ref={containerRef} data-tour-id="workspace-switcher" className="relative mb-4">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

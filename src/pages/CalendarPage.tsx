@@ -89,12 +89,12 @@ export function CalendarPage() {
           <p className="mt-0.5 text-[11px] text-[var(--muted)]">Eventos y fechas límite de tus tareas · ← → para moverte, T para hoy</p>
         </div>
         <div className="flex flex-none items-center gap-2">
-          <div className="flex items-center rounded-lg border border-[var(--line)] bg-[var(--surface)]">
+          <div data-tour-id="calendar-navigation" className="flex items-center rounded-lg border border-[var(--line)] bg-[var(--surface)]">
             <button type="button" onClick={() => setAnchor((value) => shiftAnchor(mode, value, -1))} aria-label="Anterior" className="grid size-7 place-items-center text-[var(--muted)] hover:text-[var(--text)]"><ChevronLeft className="size-4" /></button>
             <button type="button" onClick={() => setAnchor(startOfDay(new Date()))} className="px-2 text-[11px] font-medium">Hoy</button>
             <button type="button" onClick={() => setAnchor((value) => shiftAnchor(mode, value, 1))} aria-label="Siguiente" className="grid size-7 place-items-center text-[var(--muted)] hover:text-[var(--text)]"><ChevronRight className="size-4" /></button>
           </div>
-          <div role="radiogroup" aria-label="Vista del calendario" className="flex rounded-lg border border-[var(--line)] bg-[var(--surface)] p-0.5">
+          <div role="radiogroup" aria-label="Vista del calendario" data-tour-id="calendar-modes" className="flex rounded-lg border border-[var(--line)] bg-[var(--surface)] p-0.5">
             {modes.map((option) => (
               <button
                 key={option.value}
@@ -109,7 +109,7 @@ export function CalendarPage() {
               </button>
             ))}
           </div>
-          <button type="button" onClick={newEvent} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm hover:brightness-105">
+          <button type="button" data-tour-id="calendar-new" onClick={newEvent} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm hover:brightness-105">
             <Plus className="size-3.5" /> Nuevo evento
           </button>
         </div>
@@ -117,7 +117,7 @@ export function CalendarPage() {
 
       {(error || actionError) && <div className="mx-6 mt-3 rounded-xl bg-red-500/10 px-4 py-2 text-xs text-red-500">{error ?? actionError}</div>}
 
-      <div className={`min-h-0 flex-1 transition-opacity ${loading ? "opacity-60" : ""}`}>
+      <div data-tour-id="calendar-grid" className={`min-h-0 flex-1 transition-opacity ${loading ? "opacity-60" : ""}`}>
         {mode === "month" ? (
           <MonthView
             anchor={anchor}

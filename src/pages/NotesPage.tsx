@@ -81,12 +81,12 @@ export function NotesPage() {
           <h1 className="text-lg font-semibold tracking-[-0.025em]">Notas</h1>
           <p className="mt-0.5 text-[11px] text-[var(--muted)]">Ideas disponibles sobre cualquier aplicación</p>
         </div>
-        <button type="button" onClick={() => void createNote()} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm">
+        <button type="button" data-tour-id="notes-new" onClick={() => void createNote()} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm">
           <Plus className="size-3.5" /> Nueva nota <kbd className="ml-1 rounded bg-white/15 px-1 py-0.5 text-[9px]">⌥N</kbd>
         </button>
       </header>
 
-      <div className="p-6">
+      <div data-tour-id="notes-list" className="p-6">
         <div className="mb-5 flex items-center gap-3">
           <label className="flex min-w-0 max-w-sm flex-1 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
             <Search className="size-3.5 text-[var(--muted)]" />

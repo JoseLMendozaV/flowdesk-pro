@@ -68,7 +68,7 @@ function SettingsCard({ settings, onSave }: { settings: PomodoroSettings; onSave
   );
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--card-shadow)]">
+    <section data-tour-id="focus-settings" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--card-shadow)]">
       <h2 className="text-xs font-semibold">Preferencias del ciclo</h2>
       <div className="mt-3 grid grid-cols-2 gap-2.5">
         {number("focusMinutes", "Enfoque (min)", 1, 180)}
@@ -105,7 +105,7 @@ function TodaySessions() {
   useDataChanged(["time"], load);
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--card-shadow)]">
+    <section data-tour-id="focus-sessions" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--card-shadow)]">
       <h2 className="text-xs font-semibold">Sesiones de hoy</h2>
       {sessions.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-[var(--line)] px-3 py-6 text-center text-[11px] text-[var(--muted)]">Todavía no hay sesiones hoy.</p>
@@ -173,7 +173,7 @@ export function FocusPage() {
       </header>
 
       <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-5 p-6">
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--card-shadow)]">
+        <section data-tour-id="focus-timer" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--card-shadow)]">
           {!pomodoro && (
             <div role="tablist" aria-label="Tipo de sesión" className="mx-auto mb-6 flex w-fit rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
               {sessionOrder.map((option) => (

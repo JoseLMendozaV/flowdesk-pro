@@ -64,7 +64,7 @@ export function AppUsagePanel() {
 
   if (!settings.enabled && !report?.weekSeconds) {
     return (
-      <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]">
+      <section data-tour-id="time-app-usage" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]">
         <div className="flex items-start gap-3">
           <span className="grid size-9 flex-none place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"><ShieldCheck className="size-4" /></span>
           <div className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ export function AppUsagePanel() {
   const status = !settings.enabled ? "Desactivado" : settings.paused ? "En pausa" : report?.currentApp ? `Midiendo: ${report.currentApp}` : "Esperando actividad";
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]">
+    <section data-tour-id="time-app-usage" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--card-shadow)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Tiempo por aplicación</h2>

@@ -3,6 +3,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CheckSquare2,
+  CircleHelp,
   Clipboard,
   Clock3,
   Focus,
@@ -12,6 +13,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import logo from "../assets/flowdesk-logo.png";
+import { flowdeskApi } from "../services/flowdeskApi";
 import { WorkspaceSwitcher } from "../features/workspaces/WorkspaceSwitcher";
 import { useAppStore, type Section } from "../stores/appStore";
 
@@ -52,6 +54,7 @@ export function Sidebar() {
           <button
             key={label}
             type="button"
+            data-tour-id={id ? `nav-${id}` : undefined}
             onClick={() => enabled && id && selectSection(id as Section)}
             aria-current={active ? "page" : undefined}
             aria-disabled={!enabled}
@@ -72,14 +75,26 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto border-t border-[var(--line)] pt-3">
-        <button
-          type="button"
-          onClick={openPreferences}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12px] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
-        >
-          <Settings className="size-[15px]" strokeWidth={1.8} />
-          Configuración
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            data-tour-id="nav-settings"
+            onClick={openPreferences}
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12px] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+          >
+            <Settings className="size-[15px]" strokeWidth={1.8} />
+            Configuración
+          </button>
+          <button
+            type="button"
+            onClick={() => void flowdeskApi.openOnboarding("tour")}
+            aria-label="Ayuda: recorrido por FlowDesk"
+            title="Recorrido por FlowDesk"
+            className="grid size-8 flex-none place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+          >
+            <CircleHelp className="size-[15px]" strokeWidth={1.8} />
+          </button>
+        </div>
         <div className="mt-1 flex items-center gap-2 px-2.5 py-2 text-[10px] text-[var(--muted)]">
           <span className="size-1.5 rounded-full bg-emerald-500" />
           Datos locales · Sin conexión

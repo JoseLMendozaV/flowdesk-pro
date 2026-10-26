@@ -1,9 +1,9 @@
-use crate::{background, commands::notes, models::TimerSnapshot, windows};
+use crate::{background, commands::notes, menu as app_menu, models::TimerSnapshot, windows};
 use std::sync::Mutex;
 use tauri::{
     App, AppHandle, Emitter,
     image::Image,
-    menu::{Menu, MenuItem, PredefinedMenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
@@ -81,11 +81,43 @@ pub fn create(app: &App) -> tauri::Result<()> {
         true,
         None::<&str>,
     )?;
+    // Las acciones de Ayuda las atiende `menu::handle_event`, común con la barra de menús.
+    let help = Submenu::with_items(
+        app,
+        "Ayuda",
+        true,
+        &[
+            &MenuItem::with_id(
+                app,
+                app_menu::TOUR_ID,
+                "Recorrido por FlowDesk",
+                true,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                app_menu::WHATS_NEW_ID,
+                "¿Qué hay de nuevo?",
+                true,
+                None::<&str>,
+            )?,
+        ],
+    )?;
     let separator = PredefinedMenuItem::separator(app)?;
+    let help_separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Salir de FlowDesk", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
-        &[&open, &new_task, &new_note, &pomodoro, &separator, &quit],
+        &[
+            &open,
+            &new_task,
+            &new_note,
+            &pomodoro,
+            &separator,
+            &help,
+            &help_separator,
+            &quit,
+        ],
     )?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)

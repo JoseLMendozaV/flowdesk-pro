@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  CircleHelp,
   Clock3,
   ListTodo,
   LoaderCircle,
@@ -182,6 +183,7 @@ export function TrayPanel() {
         <footer className="flex items-center justify-between border-t border-[var(--line)] px-3 py-2">
           <button type="button" onClick={() => void flowdeskApi.openMain("calendar")} className="tray-footer-action"><CalendarDays /> Agenda</button>
           <button type="button" onClick={() => void flowdeskApi.openMain("settings")} className="tray-footer-action"><Settings /> Configuración</button>
+          <button type="button" onClick={() => void flowdeskApi.openOnboarding("tour")} className="tray-footer-action"><CircleHelp /> Ayuda</button>
           <button type="button" onClick={() => void flowdeskApi.quit()} className="tray-footer-action hover:text-red-500"><LogOut /> Salir</button>
         </footer>
       </section>

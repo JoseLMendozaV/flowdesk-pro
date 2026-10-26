@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { QuickTaskDialog } from "./features/tasks/QuickTaskDialog";
 import { PreferencesDialog } from "./features/tray/PreferencesDialog";
 import { TrayPanel } from "./features/tray/TrayPanel";
 import { FloatingNote } from "./features/notes/FloatingNote";
+import { OnboardingManager } from "./features/onboarding/components/OnboardingManager";
 import { useDataChanged } from "./hooks/useDataChanged";
 import { AppShell } from "./layouts/AppShell";
 import { CalendarPage } from "./pages/CalendarPage";
@@ -17,10 +18,22 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { TasksPage } from "./pages/TasksPage";
 import { useAppStore } from "./stores/appStore";
 
+// Ventana propia y ocasional: su código y sus demostraciones se cargan solo al abrirla.
+const OnboardingWindow = lazy(() =>
+  import("./features/onboarding/components/OnboardingWindow").then((module) => ({ default: module.OnboardingWindow })),
+);
+
 export default function App() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("view") === "tray") {
     return <TrayPanel />;
+  }
+  if (params.get("view") === "onboarding") {
+    return (
+      <Suspense fallback={<div className="h-screen bg-[var(--bg)]" />}>
+        <OnboardingWindow />
+      </Suspense>
+    );
   }
   if (params.get("view") === "note" && params.get("id")) {
     return <FloatingNote noteId={params.get("id")!} />;
@@ -86,6 +99,7 @@ function MainApplication() {
       </AppShell>
       <QuickTaskDialog />
       <PreferencesDialog />
+      <OnboardingManager />
     </>
   );
 }
