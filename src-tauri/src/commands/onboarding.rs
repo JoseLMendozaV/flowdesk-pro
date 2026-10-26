@@ -5,7 +5,7 @@ use crate::{
 };
 use rusqlite::params;
 use std::collections::BTreeMap;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 /// Módulos operativos incluidos en este binario. El registro de funcionalidades del
 /// frontend exige su capacidad antes de presentar una función: añadir aquí la de un
@@ -27,10 +27,6 @@ const CAPABILITIES: &[&str] = &[
     "updates",
 ];
 
-/// La extensión WidgetKit (fase 7) se empaqueta en `Contents/PlugIns`. Sin ella los
-/// widgets no existen, aunque el código de la app los conozca.
-const WIDGET_EXTENSION: &str = "PlugIns/FlowDeskWidgets.appex";
-
 const WELCOME_OUTCOMES: &[&str] = &["completed", "skipped"];
 const HISTORY_EVENTS: &[&str] = &[
     "whats_new_shown",
@@ -40,22 +36,8 @@ const HISTORY_EVENTS: &[&str] = &[
 const HISTORY_LIMIT: i64 = 200;
 const MAX_FEATURES: usize = 200;
 
-pub fn capabilities(app: &AppHandle) -> Vec<String> {
-    let mut list: Vec<String> = CAPABILITIES.iter().map(ToString::to_string).collect();
-    let widgets_bundled = app
-        .path()
-        .resource_dir()
-        .ok()
-        .and_then(|resources| {
-            resources
-                .parent()
-                .map(|contents| contents.join(WIDGET_EXTENSION))
-        })
-        .is_some_and(|extension| extension.exists());
-    if widgets_bundled {
-        list.push("widgets".to_string());
-    }
-    list
+pub fn capabilities() -> Vec<String> {
+    CAPABILITIES.iter().map(ToString::to_string).collect()
 }
 
 fn app_version(app: &AppHandle) -> String {
@@ -269,7 +251,7 @@ pub fn reset(database: &Database, version: &str) -> Result<(), String> {
 
 fn changed(app: &AppHandle, database: &Database) -> Result<OnboardingState, String> {
     let _ = app.emit("flowdesk://data-changed", "onboarding");
-    load_state(database, &app_version(app), capabilities(app))
+    load_state(database, &app_version(app), capabilities())
 }
 
 #[tauri::command]
@@ -277,7 +259,7 @@ pub fn get_onboarding_state(
     app: AppHandle,
     database: State<'_, Database>,
 ) -> Result<OnboardingState, String> {
-    load_state(&database, &app_version(&app), capabilities(&app))
+    load_state(&database, &app_version(&app), capabilities())
 }
 
 #[tauri::command]

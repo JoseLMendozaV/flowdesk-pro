@@ -188,4 +188,4 @@ Iconos propios proporcionados por el usuario. Los originales están en `src-taur
 
 ## Próxima fase
 
-Fase 7: widgets nativos con SwiftUI y WidgetKit, App Group, deep links y App Intents.
+Fase 7: notas flotantes 2.0 (la fase 7 original, widgets nativos, se descartó por decisión del usuario).

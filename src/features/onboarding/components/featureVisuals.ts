@@ -8,7 +8,6 @@ import {
   Focus,
   FolderKanban,
   Home,
-  LayoutGrid,
   PanelTop,
   StickyNote,
   type LucideIcon,
@@ -26,7 +25,6 @@ export const featureIcons: Record<FeatureIconName, LucideIcon> = {
   workspaces: BriefcaseBusiness,
   clipboard: Clipboard,
   "menu-bar": PanelTop,
-  widgets: LayoutGrid,
   ai: Bot,
 };
 
