@@ -15,6 +15,13 @@ type AppState = {
   taskView: TaskView;
   taskLayout: TaskLayout;
   calendarMode: CalendarMode;
+  /**
+   * Hora (minutos desde medianoche) a la que el calendario coloca las tareas con fecha
+   * pero sin hora; `null` las deja en la franja de todo el día.
+   */
+  untimedTaskMinute: number | null;
+  /** Tarea que debe abrirse en el detalle al llegar a Tareas. */
+  focusedTaskId: string | null;
   toggleRightPanel: () => void;
   openQuickTask: () => void;
   closeQuickTask: () => void;
@@ -25,7 +32,10 @@ type AppState = {
   setTaskView: (view: TaskView) => void;
   setTaskLayout: (layout: TaskLayout) => void;
   setCalendarMode: (mode: CalendarMode) => void;
+  setUntimedTaskMinute: (minute: number | null) => void;
   openTasks: (view: TaskView) => void;
+  focusTask: (taskId: string) => void;
+  clearFocusedTask: () => void;
 };
 
 export const useAppStore = create<AppState>()(
@@ -39,6 +49,9 @@ export const useAppStore = create<AppState>()(
       taskView: "today",
       taskLayout: "list",
       calendarMode: "week",
+      // Las 12:00: la hora a la que se guardan las tareas sin hora.
+      untimedTaskMinute: 12 * 60,
+      focusedTaskId: null,
       toggleRightPanel: () =>
         set((state) => ({ rightPanelVisible: !state.rightPanelVisible })),
       openQuickTask: () => set({ quickTaskOpen: true }),
@@ -51,7 +64,11 @@ export const useAppStore = create<AppState>()(
       setTaskView: (taskView) => set({ taskView }),
       setTaskLayout: (taskLayout) => set({ taskLayout }),
       setCalendarMode: (calendarMode) => set({ calendarMode }),
+      setUntimedTaskMinute: (untimedTaskMinute) => set({ untimedTaskMinute }),
       openTasks: (taskView) => set({ selectedSection: "tasks", taskView }),
+      // «Todas»: la tarea puede no vencer hoy.
+      focusTask: (focusedTaskId) => set({ selectedSection: "tasks", taskView: "all", focusedTaskId }),
+      clearFocusedTask: () => set({ focusedTaskId: null }),
     }),
     {
       name: "flowdesk-ui",
@@ -59,6 +76,7 @@ export const useAppStore = create<AppState>()(
         rightPanelVisible: state.rightPanelVisible,
         taskLayout: state.taskLayout,
         calendarMode: state.calendarMode,
+        untimedTaskMinute: state.untimedTaskMinute,
       }),
     },
   ),

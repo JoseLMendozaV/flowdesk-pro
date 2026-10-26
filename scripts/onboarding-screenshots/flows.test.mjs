@@ -345,3 +345,26 @@ test("la página Notas filtra por contexto", async () => {
   }
 });
 
+
+test("el calendario coloca las tareas a su hora y las sin hora en la hora por defecto", async () => {
+  const page = await open("target=calendar", { width: 1180, height: 900 });
+  const block = (label) => `Boolean(document.querySelector('[aria-label=${JSON.stringify(label)}]'))`;
+  try {
+    await page.waitFor(block("Tarea: Revisar el borrador del capítulo 3, 11:00"));
+    await page.waitFor(block("Tarea: Preparar la clase del jueves, sin hora fija"));
+    // A «Todo el día»: deja la cuadrícula y pasa a la franja superior como casilla.
+    await page.evaluate(`(() => {
+      const select = document.querySelector('[aria-label="Hora de las tareas sin hora"]');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, "all-day");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    })()`);
+    await page.waitFor(`!${block("Tarea: Preparar la clase del jueves, sin hora fija")}`);
+    await page.waitFor(block("Completar: Preparar la clase del jueves"));
+    // Pulsar el bloque abre la tarea en su sección, con el detalle.
+    await page.clickSelector('[aria-label="Tarea: Revisar el borrador del capítulo 3, 11:00"]');
+    await page.waitFor("document.querySelector('nav [aria-current=page]')?.textContent.trim() === 'Tareas'");
+    await page.waitFor(`${calls("get_task")}.some((args) => args.taskId === "k1")`);
+  } finally {
+    await page.close();
+  }
+});

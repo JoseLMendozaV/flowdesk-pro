@@ -98,10 +98,11 @@ test("la huella cambia con funciones nuevas o revisiones, no con el orden", () =
 
 test("el historial por versión empieza por la más reciente", () => {
   const notes = releaseNotes(availableFeatures(CURRENT));
-  assert.deepEqual(notes.map((entry) => entry.version), ["0.4.0", "0.2.0", "0.1.0"]);
-  assert.deepEqual(notes[0].improved.map((item) => item.feature.id), ["notes", "workspaces"]);
-  assert.ok(notes[1].added.some((item) => item.id === "calendar"));
-  assert.ok(notes[1].improved.some((item) => item.feature.id === "time"));
+  assert.deepEqual(notes.map((entry) => entry.version), ["0.5.0", "0.4.0", "0.2.0", "0.1.0"]);
+  assert.deepEqual(notes[0].improved.map((item) => item.feature.id), ["calendar"]);
+  assert.deepEqual(notes[1].improved.map((item) => item.feature.id), ["notes", "workspaces"]);
+  assert.ok(notes[2].added.some((item) => item.id === "calendar"));
+  assert.ok(notes[2].improved.some((item) => item.feature.id === "time"));
 });
 
 test("los pasos de la visita llevan su función y una IA sin modelo pide configuración", () => {

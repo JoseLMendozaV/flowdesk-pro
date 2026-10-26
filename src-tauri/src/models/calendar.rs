@@ -42,6 +42,8 @@ pub struct CalendarTask {
     pub due_at: i64,
     pub due_has_time: bool,
     pub project_color: Option<String>,
+    /// Duración del bloque en la cuadrícula del calendario.
+    pub estimated_minutes: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

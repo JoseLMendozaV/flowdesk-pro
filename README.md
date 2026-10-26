@@ -23,7 +23,7 @@ Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se de
 - protección de instancia única;
 - restauración de tamaño y posición de la ventana principal;
 - inicio opcional con macOS mediante LaunchAgent y modo de inicio oculto;
-- calendario con vistas de día, semana y mes, eventos y fechas límite de tareas;
+- calendario con vistas de día, semana y mes, eventos y tareas colocadas a su hora con su duración estimada (las que no tienen hora, a una hora por defecto configurable);
 - recordatorios de tareas, eventos y notas, resumen diario y horas de silencio, sin duplicados y resistentes al reposo;
 - espacios de trabajo que filtran tareas, proyectos, notas y agenda, y abren sus carpetas y apps;
 - historial del portapapeles opcional, con exclusiones y detección conservadora de credenciales;
@@ -59,6 +59,7 @@ npm run check
 npm run build
 npm run test:rust
 npm run test:onboarding
+npm run test:calendar
 npm run test:onboarding-ui   # flujos de la guía en Chrome sin interfaz
 ```
 

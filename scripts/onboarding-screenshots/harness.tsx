@@ -1,7 +1,7 @@
 // Arnés de capturas: la interfaz real de FlowDesk con el IPC de Tauri simulado y datos
 // de demostración. No abre SQLite ni toca los datos del usuario.
 //
-// Parámetros: ?target=<sección>|tray|onboarding  &mode=<modo de la guía>  &feature=<id>
+// Parámetros: ?target=<sección>|tray|onboarding|note  &mode=<modo de la guía>  &feature=<id>
 //             &timer=idle|running  &entry=running  &state=first-run|news|seen  &panel=0
 //             &hidden=1 (dashboard oculto)  &settings=1 (abre Configuración)  &tour=<id> (visita guiada)
 //             &return=1 (la visita vuelve a la bienvenida)  &demo=1
@@ -78,7 +78,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     events: data.events.filter((event) => event.endsAt > (args.start as number) && event.startsAt < (args.end as number)),
     tasks: data.tasks
       .filter((task) => task.dueAt !== null && task.dueAt >= (args.start as number) && task.dueAt < (args.end as number))
-      .map((task) => ({ id: task.id, title: task.title, status: task.status, priority: task.priority, dueAt: task.dueAt, dueHasTime: task.dueHasTime, projectColor: task.projectColor })),
+      .map((task) => ({ id: task.id, title: task.title, status: task.status, priority: task.priority, dueAt: task.dueAt, dueHasTime: task.dueHasTime, projectColor: task.projectColor, estimatedMinutes: task.estimatedMinutes })),
   }),
   list_reminders: () => data.reminders,
   get_reminder_settings: () => ({ enabled: true, taskLeadMinutes: 10, dailyDigest: true, digestMinute: 540, quietHours: false, quietStart: 1320, quietEnd: 420 }),

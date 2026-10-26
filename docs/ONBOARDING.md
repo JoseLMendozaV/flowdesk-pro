@@ -24,7 +24,7 @@ La disponibilidad no depende de la fase, sino del registro y de lo que Rust decl
 | Tareas y Proyectos | 4 | 0.1.0 | Se presentan |
 | Pomodoro | 5 | 0.1.0 | Se presenta |
 | Seguimiento del tiempo | 5 | 0.1.0 (por aplicación en 0.2.0) | Se presenta |
-| Agenda y recordatorios, Espacios (mejorados en 0.4.0), Portapapeles | 6 | 0.2.0 | Se presentan |
+| Agenda y recordatorios (mejorada en 0.5.0), Espacios (mejorados en 0.4.0), Portapapeles | 6 | 0.2.0 | Se presentan |
 | IA local | 8 | — | **No se presenta**: no hay módulo; la barra lateral la muestra deshabilitada |
 
 ## Cuándo se abre
@@ -170,7 +170,7 @@ La guía no activa el seguimiento por aplicación ni el portapapeles, no inicia 
   - huella estable;
   - historial por versión;
   - IA sin modelo pide configuración.
-- `npm run test:onboarding-ui`: **21 flujos sobre la interfaz real** (los 7 de las notas 2.0, en docs/PHASE_07.md) en Chrome sin interfaz, con el IPC simulado:
+- `npm run test:onboarding-ui`: **22 flujos sobre la interfaz real** (los 7 de las notas 2.0, en docs/PHASE_07.md, y el de las tareas en el calendario) en Chrome sin interfaz, con el IPC simulado:
   - al abrir decide bienvenida, novedades o nada, y **no abre nada con el dashboard oculto**;
   - avanzar, retroceder, saltar a un paso con los puntos, foco en el título y completar;
   - «Explorar por mi cuenta» y Esc omiten;

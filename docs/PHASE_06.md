@@ -15,6 +15,18 @@ Calendario, recordatorios, espacios de trabajo, portapapeles y seguimiento autom
 
 Los eventos de todo el día se guardan desde la medianoche local del primer día hasta la medianoche del día siguiente al último (fin exclusivo). Los días se suman con `setDate`, así el horario de verano no los desplaza.
 
+### Mejora posterior (26 de octubre de 2026): tareas en la cuadrícula
+
+- **Tareas con hora:** en las vistas de día y semana aparecen como bloques a su hora, con la altura de su tiempo estimado (30 minutos si no lo tienen).
+- **Tareas sin hora:** se guardan a mediodía. El selector «Sin hora» elige dónde se muestran: a una hora por defecto (12:00 de inicio; también 8, 9, 10, 14, 16 o 18) o en la franja «Todo el día». La preferencia se recuerda.
+  - En la cuadrícula llevan borde discontinuo y «Sin hora fija»; la tarea no cambia en la base de datos.
+- **Columnas:** tareas y eventos que coinciden se reparten el ancho, con el mismo algoritmo de columnas (`placeDayItems` en `calendarDates.ts`).
+- **Clics:** el círculo completa la tarea; el resto del bloque abre Tareas con su detalle.
+- **Pruebas:**
+  - `npm run test:calendar`: 5 pruebas de colocación (hora y duración, duración por defecto, hora por defecto o todo el día, columnas compartidas, final del día);
+  - un flujo nuevo en `npm run test:onboarding-ui`.
+- **Guía:** la ficha Agenda pasa a la revisión 2 (versión prevista 0.5.0), con un paso nuevo de la visita guiada sobre el selector.
+
 ## Recordatorios
 
 `background/reminders.rs`, hilo `flowdesk-reminders`.

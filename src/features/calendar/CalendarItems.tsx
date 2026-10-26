@@ -54,6 +54,59 @@ export function TaskChip({ task, onToggle }: { task: CalendarTask; onToggle: (ta
   );
 }
 
+function durationLabel(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  return minutes % 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes / 60} h`;
+}
+
+/**
+ * Bloque de una tarea en la cuadrícula: el círculo la completa y el resto abre su
+ * detalle. Las colocadas en la hora por defecto llevan borde discontinuo.
+ */
+export function TaskBlock({ task, defaultTime, compact, onToggle, onOpen }: { task: CalendarTask; defaultTime: boolean; compact: boolean; onToggle: (task: CalendarTask) => void; onOpen: (task: CalendarTask) => void }) {
+  const done = task.status === "completed";
+  const color = task.projectColor ?? fallbackColor;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={(mouseEvent) => {
+        mouseEvent.stopPropagation();
+        onOpen(task);
+      }}
+      onKeyDown={(keyEvent) => {
+        if (keyEvent.key === "Enter") onOpen(task);
+      }}
+      title={defaultTime ? `${task.title} · sin hora fija` : task.title}
+      aria-label={`Tarea: ${task.title}${defaultTime ? ", sin hora fija" : `, ${formatTime(task.dueAt)}`}`}
+      className={`flex h-full w-full cursor-pointer gap-1 overflow-hidden rounded-md border px-1 py-0.5 text-left text-[10px] leading-[14px] shadow-sm transition hover:brightness-95 ${defaultTime ? "border-dashed" : ""}`}
+      style={{ borderColor: `color-mix(in srgb, ${color} 60%, transparent)`, backgroundColor: `color-mix(in srgb, ${color} 9%, var(--surface))` }}
+    >
+      <button
+        type="button"
+        onClick={(mouseEvent) => {
+          mouseEvent.stopPropagation();
+          onToggle(task);
+        }}
+        aria-label={done ? `Marcar como pendiente: ${task.title}` : `Completar: ${task.title}`}
+        className={`mt-px grid size-3 flex-none place-items-center rounded-full border ${done ? "border-emerald-500 bg-emerald-500 text-white" : "hover:border-emerald-500"}`}
+        style={!done ? { borderColor: color } : undefined}
+      >
+        {done && <Check className="size-2" strokeWidth={3.5} />}
+      </button>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={`truncate font-medium ${done ? "text-[var(--muted)] line-through" : ""}`}>{task.title}</span>
+        {!compact && (
+          <span className="truncate text-[9px] text-[var(--muted)]">
+            {defaultTime ? "Sin hora fija" : formatTime(task.dueAt)}
+            {task.estimatedMinutes ? ` · ${durationLabel(task.estimatedMinutes)}` : ""}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 /** Bloque de un evento con hora dentro de la cuadrícula del día o la semana. */
 export function EventBlock({ event, compact, onOpen }: { event: CalendarEvent; compact: boolean; onOpen: (event: CalendarEvent) => void }) {
   const color = eventColor(event);

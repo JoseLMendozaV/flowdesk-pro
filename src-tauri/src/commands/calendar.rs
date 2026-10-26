@@ -140,7 +140,8 @@ pub fn query_range(database: &Database, start: i64, end: i64) -> Result<Calendar
             .collect::<Result<Vec<_>, _>>()?;
         let tasks = connection
             .prepare(&format!(
-                "SELECT t.id, t.title, t.status, t.priority, t.due_at, t.due_has_time, p.color
+                "SELECT t.id, t.title, t.status, t.priority, t.due_at, t.due_has_time, p.color,
+                        t.estimated_minutes
                  FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
                  WHERE t.status != 'cancelled' AND t.due_at >= ?1 AND t.due_at < ?2
                  AND (?3 IS NULL OR {})
@@ -156,6 +157,7 @@ pub fn query_range(database: &Database, start: i64, end: i64) -> Result<Calendar
                     due_at: row.get(4)?,
                     due_has_time: row.get(5)?,
                     project_color: row.get(6)?,
+                    estimated_minutes: row.get(7)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

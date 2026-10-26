@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { CalendarEvent, CalendarRange, CalendarTask } from "../../types/calendar";
-import { DAY_MINUTES, eventsOnDay, minutesLabel, placeTimedEvents, sameDay, startOfDay, tasksOnDay } from "./calendarDates";
-import { EventBlock, EventChip, TaskChip } from "./CalendarItems";
+import { DAY_MINUTES, eventsOnDay, minutesLabel, placeDayItems, sameDay, startOfDay, tasksOnDay } from "./calendarDates";
+import { EventBlock, EventChip, TaskBlock, TaskChip } from "./CalendarItems";
 
 const HOUR_HEIGHT = 44;
 const PIXELS_PER_MINUTE = HOUR_HEIGHT / 60;
@@ -17,10 +17,13 @@ type TimeGridProps = {
   onCreateAllDay: (day: Date) => void;
   onOpenEvent: (event: CalendarEvent) => void;
   onToggleTask: (task: CalendarTask) => void;
+  onOpenTask: (task: CalendarTask) => void;
+  /** Hora por defecto de las tareas sin hora; `null`: van a la franja de todo el día. */
+  untimedTaskMinute: number | null;
 };
 
 /** Cuadrícula horaria para las vistas de día y semana. */
-export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay, onOpenEvent, onToggleTask }: TimeGridProps) {
+export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay, onOpenEvent, onToggleTask, onOpenTask, untimedTaskMinute }: TimeGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const columns = `52px repeat(${days.length}, minmax(0, 1fr))`;
 
@@ -44,7 +47,7 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
         {days.map((day) => {
           const isToday = sameDay(day, now);
           const allDay = eventsOnDay(data.events, day).filter((event) => event.isAllDay);
-          const untimed = tasksOnDay(data.tasks, day).filter((task) => !task.dueHasTime);
+          const untimed = untimedTaskMinute === null ? tasksOnDay(data.tasks, day).filter((task) => !task.dueHasTime) : [];
           return (
             <div key={day.getTime()} className="min-w-0 border-l border-[var(--line)]">
               <button
@@ -75,8 +78,7 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
             ))}
           </div>
           {days.map((day) => {
-            const placed = placeTimedEvents(eventsOnDay(data.events, day), day);
-            const timedTasks = tasksOnDay(data.tasks, day).filter((task) => task.dueHasTime);
+            const placed = placeDayItems(eventsOnDay(data.events, day), tasksOnDay(data.tasks, day), day, untimedTaskMinute);
             const nowMinutes = sameDay(day, now) ? now.getHours() * 60 + now.getMinutes() : null;
             return (
               <div
@@ -88,29 +90,24 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
                   backgroundImage: `repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px ${HOUR_HEIGHT}px)`,
                 }}
               >
-                {placed.map(({ event, top, height, column, columns: count }) => (
+                {placed.map((item) => (
                   <div
-                    key={event.id}
-                    className="absolute px-px"
+                    key={item.kind === "event" ? item.event.id : `task-${item.task.id}`}
+                    className="absolute z-[1] px-px"
                     style={{
-                      top: top * PIXELS_PER_MINUTE,
-                      height: Math.max(height * PIXELS_PER_MINUTE - 1, 16),
-                      left: `${(column / count) * 100}%`,
-                      width: `${100 / count}%`,
+                      top: item.top * PIXELS_PER_MINUTE,
+                      height: Math.max(item.height * PIXELS_PER_MINUTE - 1, 16),
+                      left: `${(item.column / item.columns) * 100}%`,
+                      width: `${100 / item.columns}%`,
                     }}
                   >
-                    <EventBlock event={event} compact={height < 40} onOpen={onOpenEvent} />
+                    {item.kind === "event" ? (
+                      <EventBlock event={item.event} compact={item.height < 40} onOpen={onOpenEvent} />
+                    ) : (
+                      <TaskBlock task={item.task} defaultTime={item.defaultTime} compact={item.height < 40} onToggle={onToggleTask} onOpen={onOpenTask} />
+                    )}
                   </div>
                 ))}
-                {timedTasks.map((task) => {
-                  const due = new Date(task.dueAt * 1000);
-                  const minutes = due.getHours() * 60 + due.getMinutes();
-                  return (
-                    <div key={task.id} className="absolute inset-x-1 z-[1] rounded-[5px] bg-[var(--surface)] shadow-sm" style={{ top: minutes * PIXELS_PER_MINUTE }}>
-                      <TaskChip task={task} onToggle={onToggleTask} />
-                    </div>
-                  );
-                })}
                 {nowMinutes !== null && (
                   <div aria-hidden className="pointer-events-none absolute inset-x-0 z-[2] h-px bg-red-500" style={{ top: nowMinutes * PIXELS_PER_MINUTE }}>
                     <span className="absolute -left-1 -top-1 size-2 rounded-full bg-red-500" />

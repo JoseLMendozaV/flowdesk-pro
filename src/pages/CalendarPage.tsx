@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CheckSquare2, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { EventDialog, type EventDraft } from "../features/calendar/EventDialog";
 import { MonthView } from "../features/calendar/MonthView";
 import { TimeGrid } from "../features/calendar/TimeGrid";
-import { addDays, rangeTitle, shiftAnchor, startOfDay, unix, visibleDays } from "../features/calendar/calendarDates";
+import { addDays, minutesLabel, rangeTitle, shiftAnchor, startOfDay, unix, visibleDays } from "../features/calendar/calendarDates";
 import { useCalendar, useMinuteClock } from "../features/calendar/useCalendar";
 import { flowdeskApi } from "../services/flowdeskApi";
 import { errorMessage } from "../services/format";
 import { useAppStore } from "../stores/appStore";
 import type { CalendarEvent, CalendarMode, CalendarTask } from "../types/calendar";
+
+/** Dónde colocar las tareas con fecha pero sin hora en las vistas de día y semana. */
+const untimedOptions = [8, 9, 10, 12, 14, 16, 18].map((hour) => hour * 60);
 
 const modes: { value: CalendarMode; label: string; key: string }[] = [
   { value: "day", label: "Día", key: "d" },
@@ -30,6 +33,9 @@ function allDayDraft(day: Date): EventDraft {
 export function CalendarPage() {
   const mode = useAppStore((state) => state.calendarMode);
   const setMode = useAppStore((state) => state.setCalendarMode);
+  const untimedTaskMinute = useAppStore((state) => state.untimedTaskMinute);
+  const setUntimedTaskMinute = useAppStore((state) => state.setUntimedTaskMinute);
+  const focusTask = useAppStore((state) => state.focusTask);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [editing, setEditing] = useState<Editing | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -109,6 +115,21 @@ export function CalendarPage() {
               </button>
             ))}
           </div>
+          {mode !== "month" && (
+            <label data-tour-id="calendar-untimed" className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] py-1 pl-2 pr-1 text-[11px] text-[var(--muted)]" title="Dónde se muestran las tareas que tienen fecha pero no hora">
+              <CheckSquare2 className="size-3.5" />
+              Sin hora:
+              <select
+                value={untimedTaskMinute ?? "all-day"}
+                onChange={(event) => setUntimedTaskMinute(event.target.value === "all-day" ? null : Number(event.target.value))}
+                aria-label="Hora de las tareas sin hora"
+                className="rounded-md bg-transparent py-0.5 text-[11px] font-medium text-[var(--text)] outline-none"
+              >
+                <option value="all-day">Todo el día</option>
+                {untimedOptions.map((minute) => <option key={minute} value={minute}>{minutesLabel(minute)}</option>)}
+              </select>
+            </label>
+          )}
           <button type="button" data-tour-id="calendar-new" onClick={newEvent} className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-2 text-[11px] font-medium text-white shadow-sm hover:brightness-105">
             <Plus className="size-3.5" /> Nuevo evento
           </button>
@@ -139,6 +160,8 @@ export function CalendarPage() {
             onCreateAllDay={(day) => setEditing({ event: null, draft: allDayDraft(day) })}
             onOpenEvent={(event) => setEditing({ event, draft: event })}
             onToggleTask={(task) => void toggleTask(task)}
+            onOpenTask={(task) => focusTask(task.id)}
+            untimedTaskMinute={untimedTaskMinute}
           />
         )}
       </div>

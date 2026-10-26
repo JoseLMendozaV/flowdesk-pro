@@ -34,6 +34,8 @@ export type CalendarTask = {
   dueAt: number;
   dueHasTime: boolean;
   projectColor: string | null;
+  /** Duración del bloque en la cuadrícula; sin estimación ocupa 30 minutos. */
+  estimatedMinutes: number | null;
 };
 
 export type CalendarRange = {

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { KanbanSquare, List, LoaderCircle, Plus, Search } from "lucide-react";
 import { errorMessage, noonTodayUnix } from "../../services/format";
 import { flowdeskApi } from "../../services/flowdeskApi";
@@ -40,6 +40,15 @@ export function TaskWorkspace({ view, onViewChange, projects, fixedProjectId }: 
   const [sort, setSort] = useState<TaskSort>("due");
   const [showClosed, setShowClosed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const focusedTaskId = useAppStore((state) => state.focusedTaskId);
+  const clearFocusedTask = useAppStore((state) => state.clearFocusedTask);
+
+  // Tarea pedida desde otra sección (por ejemplo, el calendario); el detalle de proyecto no la toma.
+  useEffect(() => {
+    if (!focusedTaskId || fixedProjectId) return;
+    setSelectedId(focusedTaskId);
+    clearFocusedTask();
+  }, [clearFocusedTask, fixedProjectId, focusedTaskId]);
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
