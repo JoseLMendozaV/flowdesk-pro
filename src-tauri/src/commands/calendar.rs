@@ -1,7 +1,11 @@
 use crate::{
-    commands::workspaces::{active_workspace, event_scope, task_scope},
+    commands::{
+        trash::{RemovedOccurrences, trash_event, trash_occurrences},
+        workspaces::{active_workspace, event_scope, task_scope},
+    },
     database::Database,
-    models::{CalendarEvent, CalendarRange, CalendarTask, EventInput},
+    models::{CalendarEvent, CalendarRange, CalendarTask, EventInput, EventScope},
+    recurrence::{RecurrenceRule, parse_exceptions, shift_local},
 };
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -12,9 +16,12 @@ use uuid::Uuid;
 const MAX_RANGE_SECONDS: i64 = 367 * 86_400;
 const MAX_EVENT_SECONDS: i64 = 366 * 86_400;
 const MAX_REMINDER_MINUTES: i64 = 7 * 24 * 60;
+/// Hasta dónde se busca la siguiente repetición para Inicio.
+const NEXT_OCCURRENCE_WINDOW: i64 = 400 * 86_400;
 
 const EVENT_SELECT: &str = "SELECT e.id, e.title, e.description, e.project_id, p.name, p.color,
-            e.starts_at, e.ends_at, e.is_all_day, e.location, e.reminder_minutes
+            e.starts_at, e.ends_at, e.is_all_day, e.location, e.reminder_minutes,
+            e.recurrence_rule, e.recurrence_exceptions
      FROM calendar_events e LEFT JOIN projects p ON p.id = e.project_id";
 
 struct ValidEvent {
@@ -26,25 +33,48 @@ struct ValidEvent {
     is_all_day: bool,
     location: Option<String>,
     reminder_minutes: Option<i64>,
+    recurrence: Option<RecurrenceRule>,
 }
 
-fn map_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<CalendarEvent> {
-    Ok(CalendarEvent {
-        id: row.get(0)?,
-        title: row.get(1)?,
-        description: row.get(2)?,
-        project_id: row.get(3)?,
-        project_name: row.get(4)?,
-        project_color: row.get(5)?,
-        starts_at: row.get(6)?,
-        ends_at: row.get(7)?,
-        is_all_day: row.get(8)?,
-        location: row.get(9)?,
-        reminder_minutes: row.get(10)?,
+/// Evento tal como está guardado, con las excepciones de su serie.
+struct StoredEvent {
+    event: CalendarEvent,
+    exceptions: Vec<i64>,
+}
+
+impl StoredEvent {
+    fn occurrence(&self, starts_at: i64) -> CalendarEvent {
+        CalendarEvent {
+            starts_at,
+            ends_at: shift_local(self.event.ends_at, self.event.starts_at, starts_at),
+            ..self.event.clone()
+        }
+    }
+}
+
+fn map_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredEvent> {
+    let starts_at = row.get(6)?;
+    Ok(StoredEvent {
+        event: CalendarEvent {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            description: row.get(2)?,
+            project_id: row.get(3)?,
+            project_name: row.get(4)?,
+            project_color: row.get(5)?,
+            starts_at,
+            ends_at: row.get(7)?,
+            is_all_day: row.get(8)?,
+            location: row.get(9)?,
+            reminder_minutes: row.get(10)?,
+            recurrence: RecurrenceRule::parse(row.get::<_, Option<String>>(11)?.as_deref()),
+            series_starts_at: starts_at,
+        },
+        exceptions: parse_exceptions(&row.get::<_, String>(12)?),
     })
 }
 
-fn query_event(connection: &Connection, event_id: &str) -> rusqlite::Result<Option<CalendarEvent>> {
+fn query_event(connection: &Connection, event_id: &str) -> rusqlite::Result<Option<StoredEvent>> {
     connection
         .query_row(
             &format!("{EVENT_SELECT} WHERE e.id = ?1"),
@@ -54,11 +84,15 @@ fn query_event(connection: &Connection, event_id: &str) -> rusqlite::Result<Opti
         .optional()
 }
 
-fn load_event(database: &Database, event_id: &str) -> Result<CalendarEvent, String> {
+fn load_stored(database: &Database, event_id: &str) -> Result<StoredEvent, String> {
     Uuid::parse_str(event_id).map_err(|_| "Identificador de evento no válido".to_string())?;
     database
         .with_connection(|connection| query_event(connection, event_id))?
         .ok_or_else(|| "El evento no existe".to_string())
+}
+
+fn load_event(database: &Database, event_id: &str) -> Result<CalendarEvent, String> {
+    load_stored(database, event_id).map(|stored| stored.event)
 }
 
 fn validate_event(database: &Database, input: EventInput) -> Result<ValidEvent, String> {
@@ -109,6 +143,10 @@ fn validate_event(database: &Database, input: EventInput) -> Result<ValidEvent, 
             return Err("El proyecto no existe".to_string());
         }
     }
+    let recurrence = input
+        .recurrence
+        .map(|rule| rule.normalized(input.starts_at, false))
+        .transpose()?;
     Ok(ValidEvent {
         title: title.to_string(),
         description: input.description.trim().to_string(),
@@ -118,11 +156,22 @@ fn validate_event(database: &Database, input: EventInput) -> Result<ValidEvent, 
         is_all_day: input.is_all_day,
         location,
         reminder_minutes: input.reminder_minutes,
+        recurrence,
     })
 }
 
-/// Eventos que se solapan con `[start, end)` y tareas abiertas o completadas con
-/// fecha límite dentro del intervalo.
+fn sort_events(events: &mut [CalendarEvent]) {
+    events.sort_by(|left, right| {
+        right
+            .is_all_day
+            .cmp(&left.is_all_day)
+            .then(left.starts_at.cmp(&right.starts_at))
+            .then_with(|| left.title.to_lowercase().cmp(&right.title.to_lowercase()))
+    });
+}
+
+/// Eventos que se solapan con `[start, end)`, con las repeticiones ya expandidas, y
+/// tareas abiertas o completadas con fecha límite dentro del intervalo.
 pub fn query_range(database: &Database, start: i64, end: i64) -> Result<CalendarRange, String> {
     if end <= start || end - start > MAX_RANGE_SECONDS {
         return Err("Intervalo de calendario no válido".to_string());
@@ -130,14 +179,31 @@ pub fn query_range(database: &Database, start: i64, end: i64) -> Result<Calendar
     database.with_connection(|connection| {
         // `?3`: espacio activo (ver commands/workspaces.rs).
         let workspace_id = active_workspace(connection)?;
-        let events = connection
+        let mut events: Vec<CalendarEvent> = connection
             .prepare(&format!(
-                "{EVENT_SELECT} WHERE e.starts_at < ?2 AND e.ends_at > ?1 AND {}
-                 ORDER BY e.is_all_day DESC, e.starts_at, e.title COLLATE NOCASE",
+                "{EVENT_SELECT} WHERE e.starts_at < ?2
+                 AND (e.recurrence_rule IS NOT NULL OR e.ends_at > ?1) AND {}",
                 event_scope("e", "?3")
             ))?
             .query_map(params![start, end, workspace_id], map_event)?
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flat_map(|stored| match &stored.event.recurrence {
+                Some(rule) => rule
+                    .occurrences(
+                        stored.event.starts_at,
+                        stored.event.ends_at - stored.event.starts_at,
+                        &stored.exceptions,
+                        start,
+                        end,
+                    )
+                    .into_iter()
+                    .map(|occurrence| stored.occurrence(occurrence))
+                    .collect(),
+                None => vec![stored.event],
+            })
+            .collect();
+        sort_events(&mut events);
         let tasks = connection
             .prepare(&format!(
                 "SELECT t.id, t.title, t.status, t.priority, t.due_at, t.due_has_time, p.color,
@@ -165,69 +231,262 @@ pub fn query_range(database: &Database, start: i64, end: i64) -> Result<Calendar
     })
 }
 
-pub fn insert_event(database: &Database, input: EventInput) -> Result<CalendarEvent, String> {
-    let event = validate_event(database, input)?;
+/// Próxima repetición, aún sin terminar a las `now`, de los eventos que se repiten del espacio `ws`.
+pub fn next_recurring(
+    connection: &Connection,
+    workspace_id: &Option<String>,
+    now: i64,
+) -> rusqlite::Result<Option<CalendarEvent>> {
+    let next = connection
+        .prepare(&format!(
+            "{EVENT_SELECT} WHERE e.recurrence_rule IS NOT NULL AND e.starts_at < ?1 + ?2 AND {}",
+            event_scope("e", "?3")
+        ))?
+        .query_map(
+            params![now, NEXT_OCCURRENCE_WINDOW, workspace_id],
+            map_event,
+        )?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .filter_map(|stored| {
+            let rule = stored.event.recurrence.as_ref()?;
+            let first = rule
+                .occurrences(
+                    stored.event.starts_at,
+                    stored.event.ends_at - stored.event.starts_at,
+                    &stored.exceptions,
+                    now,
+                    now + NEXT_OCCURRENCE_WINDOW,
+                )
+                .into_iter()
+                .next()?;
+            Some(stored.occurrence(first))
+        })
+        .min_by_key(|event| event.starts_at);
+    Ok(next)
+}
+
+fn insert_valid(
+    connection: &Connection,
+    event: &ValidEvent,
+    exceptions: &[i64],
+) -> rusqlite::Result<String> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
-    database.with_connection(|connection| {
-        connection.execute(
-            "INSERT INTO calendar_events(id, title, description, project_id, starts_at, ends_at,
-                is_all_day, location, reminder_minutes, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
-            params![
-                id,
-                event.title,
-                event.description,
-                event.project_id,
-                event.starts_at,
-                event.ends_at,
-                event.is_all_day,
-                event.location,
-                event.reminder_minutes,
-                now
-            ],
-        )?;
-        Ok(())
-    })?;
+    connection.execute(
+        "INSERT INTO calendar_events(id, title, description, project_id, starts_at, ends_at,
+            is_all_day, location, reminder_minutes, recurrence_rule, recurrence_exceptions,
+            created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)",
+        params![
+            id,
+            event.title,
+            event.description,
+            event.project_id,
+            event.starts_at,
+            event.ends_at,
+            event.is_all_day,
+            event.location,
+            event.reminder_minutes,
+            event.recurrence.as_ref().map(RecurrenceRule::to_json),
+            exceptions_json(exceptions),
+            now
+        ],
+    )?;
+    Ok(id)
+}
+
+fn exceptions_json(exceptions: &[i64]) -> String {
+    serde_json::to_string(exceptions).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn update_valid(
+    connection: &Connection,
+    event_id: &str,
+    event: &ValidEvent,
+    exceptions: &[i64],
+) -> rusqlite::Result<()> {
+    connection.execute(
+        "UPDATE calendar_events SET title = ?1, description = ?2, project_id = ?3,
+            starts_at = ?4, ends_at = ?5, is_all_day = ?6, location = ?7,
+            reminder_minutes = ?8, recurrence_rule = ?9, recurrence_exceptions = ?10,
+            updated_at = ?11
+         WHERE id = ?12",
+        params![
+            event.title,
+            event.description,
+            event.project_id,
+            event.starts_at,
+            event.ends_at,
+            event.is_all_day,
+            event.location,
+            event.reminder_minutes,
+            event.recurrence.as_ref().map(RecurrenceRule::to_json),
+            exceptions_json(exceptions),
+            Utc::now().timestamp(),
+            event_id
+        ],
+    )?;
+    Ok(())
+}
+
+fn set_series(
+    connection: &Connection,
+    event_id: &str,
+    rule: &RecurrenceRule,
+    exceptions: &[i64],
+) -> rusqlite::Result<()> {
+    connection.execute(
+        "UPDATE calendar_events SET recurrence_rule = ?1, recurrence_exceptions = ?2,
+            updated_at = ?3
+         WHERE id = ?4",
+        params![
+            rule.to_json(),
+            exceptions_json(exceptions),
+            Utc::now().timestamp(),
+            event_id
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn insert_event(database: &Database, input: EventInput) -> Result<CalendarEvent, String> {
+    let event = validate_event(database, input)?;
+    let id = database.with_connection(|connection| insert_valid(connection, &event, &[]))?;
     load_event(database, &id)
 }
 
+/// Cambia un evento. En uno que se repite, `occurrence_start` es el inicio original de
+/// la repetición editada y `scope` decide si el cambio afecta solo a ella, a ella y las
+/// siguientes (la serie se parte en dos) o a toda la serie. Devuelve el evento resultante.
 pub fn modify_event(
     database: &Database,
     event_id: &str,
     input: EventInput,
+    scope: Option<EventScope>,
+    occurrence_start: Option<i64>,
 ) -> Result<CalendarEvent, String> {
-    load_event(database, event_id)?;
-    let event = validate_event(database, input)?;
-    database.with_connection(|connection| {
-        connection.execute(
-            "UPDATE calendar_events SET title = ?1, description = ?2, project_id = ?3,
-                starts_at = ?4, ends_at = ?5, is_all_day = ?6, location = ?7,
-                reminder_minutes = ?8, updated_at = ?9
-             WHERE id = ?10",
-            params![
-                event.title,
-                event.description,
-                event.project_id,
-                event.starts_at,
-                event.ends_at,
-                event.is_all_day,
-                event.location,
-                event.reminder_minutes,
-                Utc::now().timestamp(),
-                event_id
-            ],
-        )?;
-        Ok(())
+    let stored = load_stored(database, event_id)?;
+    let mut event = validate_event(database, input)?;
+    let series_start = stored.event.starts_at;
+    let (Some(rule), Some(occurrence)) = (&stored.event.recurrence, occurrence_start) else {
+        database.with_connection(|connection| {
+            update_valid(connection, event_id, &event, &stored.exceptions)
+        })?;
+        return load_event(database, event_id);
+    };
+    if occurrence < series_start {
+        return Err("La repetición no pertenece a este evento".to_string());
+    }
+    let scope = match scope.unwrap_or(EventScope::All) {
+        EventScope::Following if occurrence == series_start => EventScope::All,
+        scope => scope,
+    };
+    // Toda la serie se desplaza lo mismo que se movió la repetición editada.
+    let mut shifted_exceptions = Vec::new();
+    if scope == EventScope::All && event.recurrence.is_some() {
+        let edited_start = event.starts_at;
+        let starts_at = shift_local(series_start, occurrence, edited_start);
+        event.ends_at = shift_local(event.ends_at, edited_start, starts_at);
+        event.starts_at = starts_at;
+        event.recurrence = event
+            .recurrence
+            .take()
+            .map(|rule| rule.normalized(starts_at, false))
+            .transpose()?;
+        shifted_exceptions = stored
+            .exceptions
+            .iter()
+            .map(|start| shift_local(*start, occurrence, edited_start))
+            .collect();
+    }
+    let result_id = database.with_connection_mut(|connection| {
+        let transaction = connection.transaction()?;
+        let result_id = match scope {
+            EventScope::This => {
+                let mut exceptions = stored.exceptions.clone();
+                exceptions.push(occurrence);
+                set_series(&transaction, event_id, rule, &exceptions)?;
+                event.recurrence = None;
+                insert_valid(&transaction, &event, &[])?
+            }
+            EventScope::Following => {
+                let mut ended = rule.clone();
+                ended.until = Some(occurrence - 1);
+                let (before, after): (Vec<i64>, Vec<i64>) = stored
+                    .exceptions
+                    .iter()
+                    .partition(|start| **start < occurrence);
+                set_series(&transaction, event_id, &ended, &before)?;
+                let moved: Vec<i64> = after
+                    .into_iter()
+                    .map(|start| shift_local(start, occurrence, event.starts_at))
+                    .collect();
+                insert_valid(
+                    &transaction,
+                    &event,
+                    if event.recurrence.is_some() {
+                        &moved
+                    } else {
+                        &[]
+                    },
+                )?
+            }
+            EventScope::All => {
+                update_valid(&transaction, event_id, &event, &shifted_exceptions)?;
+                event_id.to_string()
+            }
+        };
+        transaction.commit()?;
+        Ok(result_id)
     })?;
-    load_event(database, event_id)
+    load_event(database, &result_id)
 }
 
-pub fn remove_event(database: &Database, event_id: &str) -> Result<(), String> {
-    load_event(database, event_id)?;
-    database.with_connection(|connection| {
-        connection.execute("DELETE FROM calendar_events WHERE id = ?1", [event_id])?;
-        Ok(())
+/// Borra un evento y devuelve el elemento de la papelera. En uno que se repite, `scope`
+/// quita solo esa repetición, esa y las siguientes, o la serie entera.
+pub fn remove_event(
+    database: &Database,
+    event_id: &str,
+    scope: Option<EventScope>,
+    occurrence_start: Option<i64>,
+) -> Result<String, String> {
+    let stored = load_stored(database, event_id)?;
+    let now = Utc::now().timestamp();
+    database.with_connection_mut(|connection| {
+        let transaction = connection.transaction()?;
+        let series_start = stored.event.starts_at;
+        let item_id = match (&stored.event.recurrence, scope, occurrence_start) {
+            (Some(rule), Some(EventScope::This), Some(occurrence))
+                if occurrence >= series_start =>
+            {
+                let mut exceptions = stored.exceptions.clone();
+                exceptions.push(occurrence);
+                set_series(&transaction, event_id, rule, &exceptions)?;
+                let removed = RemovedOccurrences {
+                    occurrence_start: occurrence,
+                    scope: "this".to_string(),
+                    previous_until: None,
+                };
+                trash_occurrences(&transaction, event_id, removed, now)?
+            }
+            (Some(rule), Some(EventScope::Following), Some(occurrence))
+                if occurrence > series_start =>
+            {
+                let mut ended = rule.clone();
+                ended.until = Some(occurrence - 1);
+                set_series(&transaction, event_id, &ended, &stored.exceptions)?;
+                let removed = RemovedOccurrences {
+                    occurrence_start: occurrence,
+                    scope: "following".to_string(),
+                    previous_until: rule.until,
+                };
+                trash_occurrences(&transaction, event_id, removed, now)?
+            }
+            _ => trash_event(&transaction, event_id, now)?,
+        };
+        transaction.commit()?;
+        Ok(item_id)
     })
 }
 
@@ -259,10 +518,12 @@ pub fn create_event(
 pub fn update_event(
     event_id: String,
     input: EventInput,
+    scope: Option<EventScope>,
+    occurrence_start: Option<i64>,
     database: State<'_, Database>,
     app: AppHandle,
 ) -> Result<CalendarEvent, String> {
-    let event = modify_event(&database, &event_id, input)?;
+    let event = modify_event(&database, &event_id, input, scope, occurrence_start)?;
     notify(&app);
     Ok(event)
 }
@@ -270,12 +531,15 @@ pub fn update_event(
 #[tauri::command]
 pub fn delete_event(
     event_id: String,
+    scope: Option<EventScope>,
+    occurrence_start: Option<i64>,
     database: State<'_, Database>,
     app: AppHandle,
-) -> Result<(), String> {
-    remove_event(&database, &event_id)?;
+) -> Result<String, String> {
+    let item_id = remove_event(&database, &event_id, scope, occurrence_start)?;
     notify(&app);
-    Ok(())
+    let _ = app.emit("flowdesk://data-changed", "trash");
+    Ok(item_id)
 }
 
 #[cfg(test)]
@@ -353,11 +617,13 @@ mod tests {
                 reminder_minutes: Some(15),
                 ..event("Seminario de tesis", 1_200, 2_400)
             },
+            None,
+            None,
         )
         .expect("update");
         assert_eq!(updated.location.as_deref(), Some("Aula 3"));
         assert_eq!(updated.reminder_minutes, Some(15));
-        remove_event(&database, &inside.id).expect("delete");
+        remove_event(&database, &inside.id, None, None).expect("delete");
         assert!(load_event(&database, &inside.id).is_err());
     }
 
@@ -399,5 +665,170 @@ mod tests {
             .next_event
             .expect("next event");
         assert_eq!(next.title, "Reunión");
+    }
+
+    fn weekly() -> Option<RecurrenceRule> {
+        Some(RecurrenceRule {
+            frequency: crate::recurrence::Frequency::Weekly,
+            interval: 1,
+            weekdays: Vec::new(),
+            from_completion: false,
+            until: None,
+            day_of_month: None,
+        })
+    }
+
+    const WEEK: i64 = 7 * 86_400;
+    // Lunes 5 de enero de 2026 a las 10:00 UTC; sin cambios de horario en enero.
+    const MONDAY: i64 = 1_767_607_200;
+
+    fn starts(database: &Database, from: i64, to: i64) -> Vec<(String, i64)> {
+        query_range(database, from, to)
+            .expect("range")
+            .events
+            .into_iter()
+            .map(|event| (event.title, event.starts_at))
+            .collect()
+    }
+
+    fn series(database: &Database) -> CalendarEvent {
+        insert_event(
+            database,
+            EventInput {
+                recurrence: weekly(),
+                ..event("Clase", MONDAY, MONDAY + 3_600)
+            },
+        )
+        .expect("series")
+    }
+
+    #[test]
+    fn recurring_events_expand_in_the_visible_range() {
+        let database = Database::in_memory();
+        let created = series(&database);
+        assert_eq!(created.series_starts_at, MONDAY);
+        let found = starts(&database, MONDAY + WEEK, MONDAY + 3 * WEEK);
+        assert_eq!(
+            found,
+            [
+                ("Clase".to_string(), MONDAY + WEEK),
+                ("Clase".to_string(), MONDAY + 2 * WEEK)
+            ]
+        );
+        let range = query_range(&database, MONDAY + WEEK, MONDAY + 2 * WEEK).expect("range");
+        assert_eq!(range.events[0].ends_at, MONDAY + WEEK + 3_600);
+        assert_eq!(range.events[0].series_starts_at, MONDAY);
+        // Inicio muestra la próxima repetición, no la primera.
+        let next = database
+            .with_connection(|connection| next_recurring(connection, &None, MONDAY + WEEK + 7_200))
+            .expect("next")
+            .expect("event");
+        assert_eq!(next.starts_at, MONDAY + 2 * WEEK);
+    }
+
+    #[test]
+    fn editing_one_following_or_all_occurrences() {
+        let database = Database::in_memory();
+        let created = series(&database);
+        let second = MONDAY + WEEK;
+
+        // Solo esta: la serie la excluye y aparece un evento suelto.
+        modify_event(
+            &database,
+            &created.id,
+            EventInput {
+                recurrence: weekly(),
+                ..event("Clase especial", second + 1_800, second + 5_400)
+            },
+            Some(EventScope::This),
+            Some(second),
+        )
+        .expect("this");
+        assert_eq!(
+            starts(&database, second, second + WEEK),
+            [("Clase especial".to_string(), second + 1_800)]
+        );
+
+        // Esta y las siguientes: la serie original termina antes de la tercera.
+        let third = MONDAY + 2 * WEEK;
+        let split = modify_event(
+            &database,
+            &created.id,
+            EventInput {
+                recurrence: weekly(),
+                ..event("Clase nueva", third + 3_600, third + 7_200)
+            },
+            Some(EventScope::Following),
+            Some(third),
+        )
+        .expect("following");
+        assert_ne!(split.id, created.id);
+        assert_eq!(
+            starts(&database, MONDAY, MONDAY + 4 * WEEK),
+            [
+                ("Clase".to_string(), MONDAY),
+                ("Clase especial".to_string(), second + 1_800),
+                ("Clase nueva".to_string(), third + 3_600),
+                ("Clase nueva".to_string(), third + WEEK + 3_600),
+            ]
+        );
+
+        // Todas: mover una repetición una hora mueve toda la serie, y su excepción.
+        modify_event(
+            &database,
+            &created.id,
+            EventInput {
+                recurrence: Some(RecurrenceRule {
+                    until: Some(third - 1),
+                    ..weekly().unwrap()
+                }),
+                ..event("Clase", MONDAY + 3_600, MONDAY + 7_200)
+            },
+            Some(EventScope::All),
+            Some(MONDAY),
+        )
+        .expect("all");
+        let original: Vec<_> = starts(&database, MONDAY, third)
+            .into_iter()
+            .filter(|(title, _)| title == "Clase")
+            .collect();
+        assert_eq!(original, [("Clase".to_string(), MONDAY + 3_600)]);
+    }
+
+    #[test]
+    fn deleting_occurrences_goes_to_the_trash() {
+        use crate::commands::trash::{query_items, restore_item};
+        let database = Database::in_memory();
+        let created = series(&database);
+        let second = MONDAY + WEEK;
+        let third = MONDAY + 2 * WEEK;
+
+        let item = remove_event(&database, &created.id, Some(EventScope::This), Some(second))
+            .expect("this");
+        assert_eq!(starts(&database, MONDAY, third).len(), 1);
+        let trash = query_items(&database).expect("trash");
+        assert_eq!(trash[0].entity_type, "event_occurrences");
+        assert_eq!(trash[0].occurrence_start, Some(second));
+        restore_item(&database, &item).expect("restore");
+        assert_eq!(starts(&database, MONDAY, third).len(), 2);
+
+        let item = remove_event(
+            &database,
+            &created.id,
+            Some(EventScope::Following),
+            Some(second),
+        )
+        .expect("following");
+        assert_eq!(starts(&database, MONDAY, MONDAY + 10 * WEEK).len(), 1);
+        restore_item(&database, &item).expect("restore");
+        assert_eq!(starts(&database, MONDAY, MONDAY + 10 * WEEK).len(), 10);
+
+        let item =
+            remove_event(&database, &created.id, Some(EventScope::All), Some(second)).expect("all");
+        assert!(starts(&database, MONDAY, third).is_empty());
+        restore_item(&database, &item).expect("restore");
+        let restored = load_event(&database, &created.id).expect("restored");
+        assert!(restored.recurrence.is_some());
+        assert!(query_items(&database).expect("trash").is_empty());
     }
 }

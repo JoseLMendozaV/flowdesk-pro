@@ -12,4 +12,5 @@ pub mod preferences;
 pub mod projects;
 pub mod reminders;
 pub mod tasks;
+pub mod trash;
 pub mod workspaces;

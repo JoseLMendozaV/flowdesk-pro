@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import type { CalendarMode } from "../types/calendar";
 import type { TaskView } from "../types/tasks";
 
-export type Section = "dashboard" | "tasks" | "projects" | "notes" | "focus" | "time" | "calendar" | "workspaces" | "clipboard";
+export type Section = "dashboard" | "tasks" | "projects" | "notes" | "focus" | "time" | "calendar" | "workspaces" | "clipboard" | "trash";
 export type TaskLayout = "list" | "kanban";
 
 type AppState = {
@@ -11,6 +11,9 @@ type AppState = {
   rightPanelVisible: boolean;
   quickTaskOpen: boolean;
   preferencesOpen: boolean;
+  paletteOpen: boolean;
+  /** Evento nuevo pedido desde fuera del calendario (paleta de comandos); el calendario lo abre. */
+  newEventPending: boolean;
   dashboardRevision: number;
   taskView: TaskView;
   taskLayout: TaskLayout;
@@ -22,11 +25,16 @@ type AppState = {
   untimedTaskMinute: number | null;
   /** Tarea que debe abrirse en el detalle al llegar a Tareas. */
   focusedTaskId: string | null;
+  /** Proyecto que debe abrirse al llegar a Proyectos. */
+  focusedProjectId: string | null;
   toggleRightPanel: () => void;
   openQuickTask: () => void;
   closeQuickTask: () => void;
   openPreferences: () => void;
   closePreferences: () => void;
+  setPaletteOpen: (open: boolean) => void;
+  requestNewEvent: () => void;
+  clearNewEventRequest: () => void;
   refreshDashboard: () => void;
   selectSection: (section: Section) => void;
   setTaskView: (view: TaskView) => void;
@@ -36,6 +44,8 @@ type AppState = {
   openTasks: (view: TaskView) => void;
   focusTask: (taskId: string) => void;
   clearFocusedTask: () => void;
+  focusProject: (projectId: string) => void;
+  clearFocusedProject: () => void;
 };
 
 export const useAppStore = create<AppState>()(
@@ -45,6 +55,8 @@ export const useAppStore = create<AppState>()(
       rightPanelVisible: true,
       quickTaskOpen: false,
       preferencesOpen: false,
+      paletteOpen: false,
+      newEventPending: false,
       dashboardRevision: 0,
       taskView: "today",
       taskLayout: "list",
@@ -52,12 +64,16 @@ export const useAppStore = create<AppState>()(
       // Las 12:00: la hora a la que se guardan las tareas sin hora.
       untimedTaskMinute: 12 * 60,
       focusedTaskId: null,
+      focusedProjectId: null,
       toggleRightPanel: () =>
         set((state) => ({ rightPanelVisible: !state.rightPanelVisible })),
       openQuickTask: () => set({ quickTaskOpen: true }),
       closeQuickTask: () => set({ quickTaskOpen: false }),
       openPreferences: () => set({ preferencesOpen: true }),
       closePreferences: () => set({ preferencesOpen: false }),
+      setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+      requestNewEvent: () => set({ selectedSection: "calendar", newEventPending: true }),
+      clearNewEventRequest: () => set({ newEventPending: false }),
       refreshDashboard: () =>
         set((state) => ({ dashboardRevision: state.dashboardRevision + 1 })),
       selectSection: (selectedSection) => set({ selectedSection }),
@@ -69,6 +85,8 @@ export const useAppStore = create<AppState>()(
       // «Todas»: la tarea puede no vencer hoy.
       focusTask: (focusedTaskId) => set({ selectedSection: "tasks", taskView: "all", focusedTaskId }),
       clearFocusedTask: () => set({ focusedTaskId: null }),
+      focusProject: (focusedProjectId) => set({ selectedSection: "projects", focusedProjectId }),
+      clearFocusedProject: () => set({ focusedProjectId: null }),
     }),
     {
       name: "flowdesk-ui",

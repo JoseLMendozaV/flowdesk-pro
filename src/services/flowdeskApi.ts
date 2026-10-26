@@ -3,6 +3,7 @@ import type {
   CalendarEvent,
   CalendarRange,
   EventInput,
+  EventScope,
   ReminderItem,
   ReminderSettings,
 } from "../types/calendar";
@@ -49,6 +50,7 @@ import type {
   NoteVersion,
   NoteVersionSummary,
 } from "../types/notes";
+import type { RestoredItem, TrashItem } from "../types/trash";
 import type { Workspace, WorkspaceInput, WorkspaceState } from "../types/workspaces";
 
 export const flowdeskApi = {
@@ -61,7 +63,9 @@ export const flowdeskApi = {
     invoke<TaskDetail>("update_task", { taskId, input }),
   setTaskStatus: (taskId: string, status: TaskStatus) =>
     invoke<TaskDetail>("set_task_status", { taskId, status }),
-  deleteTask: (taskId: string) => invoke<void>("delete_task", { taskId }),
+  /** Devuelve el elemento de la papelera, para deshacer. */
+  deleteTask: (taskId: string) => invoke<string>("delete_task", { taskId }),
+  skipTaskOccurrence: (taskId: string) => invoke<TaskDetail>("skip_task_occurrence", { taskId }),
   addSubtask: (taskId: string, title: string) =>
     invoke<TaskDetail>("add_subtask", { taskId, title }),
   updateSubtask: (subtaskId: string, changes: { title?: string; isCompleted?: boolean }) =>
@@ -83,7 +87,7 @@ export const flowdeskApi = {
   archiveProject: (projectId: string, archived: boolean) =>
     invoke<ProjectSummary>("archive_project", { projectId, archived }),
   deleteProject: (projectId: string, mode: ProjectDeleteMode) =>
-    invoke<void>("delete_project", { projectId, mode }),
+    invoke<string>("delete_project", { projectId, mode }),
   timer: () => invoke<TimerSnapshot>("get_timer_state"),
   startPomodoro: (input: StartPomodoroInput) => invoke<TimerSnapshot>("start_pomodoro", { input }),
   pausePomodoro: () => invoke<TimerSnapshot>("pause_pomodoro"),
@@ -105,9 +109,15 @@ export const flowdeskApi = {
   deleteTimeEntry: (entryId: string) => invoke<TimerSnapshot>("delete_time_entry", { entryId }),
   calendar: (start: number, end: number) => invoke<CalendarRange>("list_calendar", { start, end }),
   createEvent: (input: EventInput) => invoke<CalendarEvent>("create_event", { input }),
-  updateEvent: (eventId: string, input: EventInput) =>
-    invoke<CalendarEvent>("update_event", { eventId, input }),
-  deleteEvent: (eventId: string) => invoke<void>("delete_event", { eventId }),
+  /** En un evento que se repite, `occurrenceStart` es el inicio original de la repetición editada. */
+  updateEvent: (eventId: string, input: EventInput, scope?: EventScope, occurrenceStart?: number) =>
+    invoke<CalendarEvent>("update_event", { eventId, input, scope: scope ?? null, occurrenceStart: occurrenceStart ?? null }),
+  deleteEvent: (eventId: string, scope?: EventScope, occurrenceStart?: number) =>
+    invoke<string>("delete_event", { eventId, scope: scope ?? null, occurrenceStart: occurrenceStart ?? null }),
+  trash: () => invoke<TrashItem[]>("list_trash"),
+  restoreTrashItem: (itemId: string) => invoke<RestoredItem>("restore_trash_item", { itemId }),
+  deleteTrashItem: (itemId: string) => invoke<void>("delete_trash_item", { itemId }),
+  emptyTrash: () => invoke<void>("empty_trash"),
   reminderSettings: () => invoke<ReminderSettings>("get_reminder_settings"),
   updateReminderSettings: (settings: ReminderSettings) =>
     invoke<ReminderSettings>("update_reminder_settings", { settings }),

@@ -12,7 +12,8 @@ mod workspaces;
 
 pub use app_tracking::{AppTrackingSettings, AppUsage, AppUsageReport};
 pub use calendar::{
-    CalendarEvent, CalendarRange, CalendarTask, EventInput, ReminderItem, ReminderSettings,
+    CalendarEvent, CalendarRange, CalendarTask, EventInput, EventScope, ReminderItem,
+    ReminderSettings,
 };
 pub use clipboard::{ClipboardItem, ClipboardSettings, ExcludedApp};
 pub use focus::{

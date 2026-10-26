@@ -170,6 +170,8 @@ pub fn spawn_reminders(app: AppHandle) {
                         reminders::reconcile(connection, &settings, moment.now)
                     });
                 }
+                // Entregar el aviso de un evento que se repite obliga a programar el siguiente.
+                let handled = reminders::has_due(&database, moment.now);
                 let mut notices =
                     reminders::collect_due(&database, &settings, &moment).unwrap_or_default();
                 if let Ok(Some(digest)) = reminders::collect_digest(&database, &settings, &moment) {
@@ -183,7 +185,8 @@ pub fn spawn_reminders(app: AppHandle) {
                 }
                 dirty = service
                     .wakeup
-                    .wait(Some(reminders::next_wait(&database, moment.now)));
+                    .wait(Some(reminders::next_wait(&database, moment.now)))
+                    || handled;
             }
         });
     if let Err(error) = spawned {

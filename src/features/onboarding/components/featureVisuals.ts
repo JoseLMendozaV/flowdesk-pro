@@ -9,7 +9,9 @@ import {
   FolderKanban,
   Home,
   PanelTop,
+  Search,
   StickyNote,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import type { FeatureCategory, FeatureIconName, FeatureTone } from "../registry/types";
@@ -25,6 +27,8 @@ export const featureIcons: Record<FeatureIconName, LucideIcon> = {
   workspaces: BriefcaseBusiness,
   clipboard: Clipboard,
   "menu-bar": PanelTop,
+  search: Search,
+  trash: Trash2,
   ai: Bot,
 };
 

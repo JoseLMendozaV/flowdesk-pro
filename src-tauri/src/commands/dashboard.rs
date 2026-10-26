@@ -1,4 +1,5 @@
 use crate::{
+    commands::calendar::next_recurring,
     commands::workspaces::{active_workspace, event_scope, note_scope, project_scope, task_scope},
     database::Database,
     models::{ActiveTimer, DashboardNote, DashboardSummary, DashboardTask, UpcomingEvent},
@@ -112,11 +113,12 @@ pub fn load_dashboard(database: &Database) -> Result<DashboardSummary, String> {
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
-        let next_event = connection
+        let next_single = connection
             .query_row(
                 &format!(
                     "SELECT e.id, e.title, e.starts_at, e.is_all_day FROM calendar_events e
-                     WHERE e.ends_at > ?1 AND {} ORDER BY e.starts_at ASC LIMIT 1",
+                     WHERE e.recurrence_rule IS NULL AND e.ends_at > ?1 AND {}
+                     ORDER BY e.starts_at ASC LIMIT 1",
                     event_scope("e", "?2")
                 ),
                 params![now, workspace_id],
@@ -130,6 +132,19 @@ pub fn load_dashboard(database: &Database) -> Result<DashboardSummary, String> {
                 },
             )
             .optional()?;
+        let next_repeated =
+            next_recurring(connection, &workspace_id, now)?.map(|event| UpcomingEvent {
+                id: event.id,
+                title: event.title,
+                starts_at: event.starts_at,
+                is_all_day: event.is_all_day,
+            });
+        let next_event = match (next_single, next_repeated) {
+            (Some(single), Some(repeated)) if repeated.starts_at < single.starts_at => {
+                Some(repeated)
+            }
+            (single, repeated) => single.or(repeated),
+        };
 
         let active_timer = connection
             .query_row(

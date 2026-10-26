@@ -4,7 +4,7 @@
 // Parámetros: ?target=<sección>|tray|onboarding|note  &mode=<modo de la guía>  &feature=<id>
 //             &timer=idle|running  &entry=running  &state=first-run|news|seen  &panel=0
 //             &hidden=1 (dashboard oculto)  &settings=1 (abre Configuración)  &tour=<id> (visita guiada)
-//             &return=1 (la visita vuelve a la bienvenida)  &demo=1
+//             &return=1 (la visita vuelve a la bienvenida)  &demo=1  &palette=1 (abre la paleta ⌘K)
 // Cada llamada al IPC queda en `window.__flowdeskCalls` para las pruebas de flujos.
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -48,6 +48,11 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_tasks: (args) => data.listTasks(args.filter as { view: string }),
   list_tags: () => data.tags,
   get_task: (args) => ({ ...data.tasks.find((task) => task.id === args.taskId), description: "", subtasks: [], notes: [] }),
+  list_trash: () => data.trashItems,
+  delete_task: () => "trash-task",
+  delete_event: () => "trash-event",
+  restore_trash_item: () => ({ entityType: "task", entityId: "k3" }),
+  update_event: (args) => ({ ...data.events.find((event) => event.id === args.eventId), ...(args.input as object) }),
   list_projects: () => data.projects,
   get_project: (args) => data.projects.find((project) => project.id === args.projectId),
   list_notes: () => data.notes,
@@ -148,6 +153,7 @@ async function render() {
   );
   // Estados que solo se alcanzan interactuando: Configuración, visita guiada y demostraciones.
   if (params.get("settings")) window.setTimeout(() => useAppStore.getState().openPreferences(), 300);
+  if (params.get("palette")) window.setTimeout(() => useAppStore.getState().setPaletteOpen(true), 300);
   const tour = params.get("tour");
   // `return=1`: la visita se lanzó desde la bienvenida y debe volver a ella.
   const returnTo = params.get("return") ? { mode: "welcome", featureId: tour } : null;

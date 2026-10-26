@@ -3,6 +3,7 @@ import { AlertTriangle, X } from "lucide-react";
 import { useEscape } from "../../hooks/useEscape";
 import { flowdeskApi } from "../../services/flowdeskApi";
 import { errorMessage } from "../../services/format";
+import { useUndoStore } from "../trash/undoStore";
 import type { ProjectDeleteMode, ProjectSummary } from "../../types/projects";
 
 type DeleteProjectDialogProps = {
@@ -17,6 +18,7 @@ export function DeleteProjectDialog({ project, onClose, onDeleted, onArchive }: 
   const [confirmation, setConfirmation] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const offerUndo = useUndoStore((state) => state.offer);
   useEscape(onClose);
 
   const hasTasks = project.taskCount > 0;
@@ -27,7 +29,8 @@ export function DeleteProjectDialog({ project, onClose, onDeleted, onArchive }: 
     if (!confirmed || deleting) return;
     setDeleting(true);
     try {
-      await flowdeskApi.deleteProject(project.id, mode);
+      const itemId = await flowdeskApi.deleteProject(project.id, mode);
+      offerUndo(`Proyecto “${project.name}” movido a la papelera`, itemId);
       onDeleted();
     } catch (reason) {
       setError(errorMessage(reason));
@@ -43,7 +46,7 @@ export function DeleteProjectDialog({ project, onClose, onDeleted, onArchive }: 
           <div className="min-w-0 flex-1">
             <h2 id="delete-project-title" className="text-sm font-semibold">Eliminar “{project.name}”</h2>
             <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
-              Contiene {project.taskCount} tareas y {project.noteCount} notas. Las notas y los registros de tiempo nunca se borran: quedan sin proyecto.
+              Contiene {project.taskCount} tareas y {project.noteCount} notas. Las notas y los registros de tiempo nunca se borran: quedan sin proyecto. Podrás recuperarlo todo desde la Papelera durante 30 días.
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="grid size-7 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)]"><X className="size-4" /></button>
@@ -61,7 +64,7 @@ export function DeleteProjectDialog({ project, onClose, onDeleted, onArchive }: 
             <input type="radio" name="delete-mode" disabled={!hasTasks} checked={mode === "delete_tasks"} onChange={() => setMode("delete_tasks")} className="mt-0.5 accent-red-500" />
             <span>
               <strong className="block text-xs font-medium">Eliminar también las tareas</strong>
-              <small className="text-[10px] text-[var(--muted)]">Borra sus tareas y subtareas de forma permanente.</small>
+              <small className="text-[10px] text-[var(--muted)]">Van a la Papelera con sus subtareas y vuelven con el proyecto.</small>
             </span>
           </label>
         </div>

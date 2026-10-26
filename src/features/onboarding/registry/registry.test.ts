@@ -17,6 +17,7 @@ import type { FeatureDefinition } from "./types.ts";
 const CURRENT = [
   "dashboard", "tasks", "projects", "notes", "global-shortcuts", "pomodoro", "time-tracking",
   "app-tracking", "calendar", "reminders", "workspaces", "clipboard", "menu-bar", "updates",
+  "recurrence", "trash", "command-palette",
 ];
 
 function feature(overrides: Partial<FeatureDefinition>): FeatureDefinition {
@@ -52,7 +53,8 @@ test("el registro no tiene errores de mantenimiento", () => {
 test("solo se presentan las funciones operativas de hoy, sin IA", () => {
   const ids = availableFeatures(CURRENT).map((item) => item.id);
   assert.deepEqual(ids, [
-    "dashboard", "tasks", "projects", "notes", "pomodoro", "time", "calendar", "workspaces", "clipboard", "menu-bar",
+    "dashboard", "command-palette", "tasks", "projects", "notes", "pomodoro", "time", "calendar", "workspaces", "clipboard",
+    "trash", "menu-bar",
   ]);
 });
 
@@ -98,11 +100,13 @@ test("la huella cambia con funciones nuevas o revisiones, no con el orden", () =
 
 test("el historial por versión empieza por la más reciente", () => {
   const notes = releaseNotes(availableFeatures(CURRENT));
-  assert.deepEqual(notes.map((entry) => entry.version), ["0.5.0", "0.4.0", "0.2.0", "0.1.0"]);
-  assert.deepEqual(notes[0].improved.map((item) => item.feature.id), ["calendar"]);
-  assert.deepEqual(notes[1].improved.map((item) => item.feature.id), ["notes", "workspaces"]);
-  assert.ok(notes[2].added.some((item) => item.id === "calendar"));
-  assert.ok(notes[2].improved.some((item) => item.feature.id === "time"));
+  assert.deepEqual(notes.map((entry) => entry.version), ["0.6.0", "0.5.0", "0.4.0", "0.2.0", "0.1.0"]);
+  assert.deepEqual(notes[0].added.map((item) => item.id), ["command-palette", "trash"]);
+  assert.deepEqual(notes[0].improved.map((item) => item.feature.id), ["tasks", "calendar"]);
+  assert.deepEqual(notes[1].improved.map((item) => item.feature.id), ["calendar"]);
+  assert.deepEqual(notes[2].improved.map((item) => item.feature.id), ["notes", "workspaces"]);
+  assert.ok(notes[3].added.some((item) => item.id === "calendar"));
+  assert.ok(notes[3].improved.some((item) => item.feature.id === "time"));
 });
 
 test("los pasos de la visita llevan su función y una IA sin modelo pide configuración", () => {

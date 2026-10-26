@@ -36,6 +36,8 @@ export function CalendarPage() {
   const untimedTaskMinute = useAppStore((state) => state.untimedTaskMinute);
   const setUntimedTaskMinute = useAppStore((state) => state.setUntimedTaskMinute);
   const focusTask = useAppStore((state) => state.focusTask);
+  const newEventPending = useAppStore((state) => state.newEventPending);
+  const clearNewEventRequest = useAppStore((state) => state.clearNewEventRequest);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [editing, setEditing] = useState<Editing | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -59,6 +61,13 @@ export function CalendarPage() {
     else start.setHours(9);
     setEditing({ event: null, draft: timedDraft(start) });
   }
+
+  // «Nuevo evento» desde la paleta de comandos.
+  useEffect(() => {
+    if (!newEventPending) return;
+    clearNewEventRequest();
+    newEvent();
+  });
 
   async function toggleTask(task: CalendarTask) {
     try {
@@ -166,7 +175,7 @@ export function CalendarPage() {
         )}
       </div>
 
-      {editing && <EventDialog key={editing.event?.id ?? "new"} event={editing.event} draft={editing.draft} onClose={() => setEditing(null)} />}
+      {editing && <EventDialog key={editing.event ? `${editing.event.id}-${editing.event.startsAt}` : "new"} event={editing.event} draft={editing.draft} onClose={() => setEditing(null)} />}
     </div>
   );
 }

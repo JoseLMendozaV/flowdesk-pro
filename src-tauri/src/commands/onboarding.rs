@@ -25,6 +25,9 @@ const CAPABILITIES: &[&str] = &[
     "clipboard",
     "menu-bar",
     "updates",
+    "recurrence",
+    "trash",
+    "command-palette",
 ];
 
 const WELCOME_OUTCOMES: &[&str] = &["completed", "skipped"];

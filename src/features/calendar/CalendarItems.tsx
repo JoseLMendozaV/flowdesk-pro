@@ -1,4 +1,4 @@
-import { Check, MapPin } from "lucide-react";
+import { Check, MapPin, Repeat } from "lucide-react";
 import { formatTime } from "../../services/format";
 import type { CalendarEvent, CalendarTask } from "../../types/calendar";
 
@@ -6,6 +6,11 @@ const fallbackColor = "#6C8CFF";
 
 export function eventColor(event: CalendarEvent) {
   return event.projectColor ?? fallbackColor;
+}
+
+/** Las repeticiones de un evento comparten `id`: la clave incluye su inicio. */
+export function eventKey(event: CalendarEvent) {
+  return `${event.id}-${event.startsAt}`;
 }
 
 /** Fila compacta para la vista de mes y la franja de todo el día. */
@@ -25,6 +30,7 @@ export function EventChip({ event, onOpen }: { event: CalendarEvent; onOpen: (ev
       {!event.isAllDay && <span className="size-1.5 flex-none rounded-full" style={{ backgroundColor: color }} />}
       {!event.isAllDay && <span className="flex-none text-[9px] tabular-nums text-[var(--muted)]">{formatTime(event.startsAt)}</span>}
       <span className="truncate">{event.title}</span>
+      {event.recurrence && <Repeat className="size-2.5 flex-none text-[var(--muted)]" aria-label="Se repite" />}
     </button>
   );
 }
@@ -120,7 +126,10 @@ export function EventBlock({ event, compact, onOpen }: { event: CalendarEvent; c
       className="flex h-full w-full flex-col overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-[10px] leading-[14px] shadow-sm transition hover:brightness-95"
       style={{ borderColor: color, backgroundColor: `color-mix(in srgb, ${color} 16%, var(--surface))` }}
     >
-      <span className="truncate font-medium">{event.title}</span>
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="truncate font-medium">{event.title}</span>
+        {event.recurrence && <Repeat className="size-2.5 flex-none opacity-60" aria-label="Se repite" />}
+      </span>
       {!compact && (
         <span className="truncate text-[9px] text-[var(--muted)]">
           {formatTime(event.startsAt)} – {formatTime(event.endsAt)}

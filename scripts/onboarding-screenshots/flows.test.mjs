@@ -54,19 +54,19 @@ test("la bienvenida avanza, retrocede, salta a un paso y se completa", async () 
   try {
     await headingIs(page, "¡Bienvenido a FlowDesk Pro!");
     const [seen] = await page.evaluate(calls("mark_features_seen"));
-    assert.equal(Object.keys(seen.features).length, 10, "presenta las 10 funciones disponibles");
+    assert.equal(Object.keys(seen.features).length, 12, "presenta las 12 funciones disponibles");
     assert.ok(!("local-ai" in seen.features));
 
     await page.click("Comenzar recorrido");
     await headingIs(page, "Inicio");
-    assert.match(await page.evaluate(text), /Paso 1 de 11/);
+    assert.match(await page.evaluate(text), /Paso 1 de 13/);
     await page.key("ArrowRight");
-    await headingIs(page, "Tareas");
-    assert.equal((await page.evaluate(calls("record_onboarding_step"))).at(-1).stepId, "feature:tasks");
+    await headingIs(page, "Paleta de comandos");
+    assert.equal((await page.evaluate(calls("record_onboarding_step"))).at(-1).stepId, "feature:command-palette");
     assert.equal(await page.evaluate("document.activeElement?.hasAttribute('data-step-heading')"), true, "el foco va al título para VoiceOver");
     await page.key("ArrowLeft");
     await headingIs(page, "Inicio");
-    await page.click("Ir al paso 11: Todo listo");
+    await page.click("Ir al paso 13: Todo listo");
     await headingIs(page, "¡Todo listo!");
     await page.click("Comenzar a trabajar");
     await page.waitFor(`${calls("close_onboarding")}.length === 1`);
@@ -148,14 +148,14 @@ test("las novedades muestran solo lo nuevo o mejorado y se marcan como vistas", 
   try {
     await headingIs(page, "¡FlowDesk Pro tiene novedades!");
     const body = await page.evaluate(text);
-    for (const title of ["Agenda y recordatorios", "Espacios de trabajo", "Historial del portapapeles"]) assert.ok(body.includes(title));
-    assert.equal((body.match(/Nuevo\b/g) ?? []).length, 3);
-    assert.equal((body.match(/Mejorado/g) ?? []).length, 4);
+    for (const title of ["Agenda y recordatorios", "Espacios de trabajo", "Historial del portapapeles", "Paleta de comandos", "Papelera"]) assert.ok(body.includes(title));
+    assert.equal((body.match(/Nuevo\b/g) ?? []).length, 5);
+    assert.equal((body.match(/Mejorado/g) ?? []).length, 5);
     assert.ok(!body.includes("Proyectos\nMejorado"), "Proyectos no cambió");
     assert.equal((await page.evaluate(calls("record_onboarding_event")))[0].event, "whats_new_shown");
     assert.equal((await page.evaluate(calls("mark_features_seen"))).length, 1);
     await page.click("Ver novedades");
-    await page.waitFor(`${text}.includes("Novedad 1 de 8")`);
+    await page.waitFor(`${text}.includes("Novedad 1 de 11")`);
   } finally {
     await page.close();
   }
@@ -368,3 +368,77 @@ test("el calendario coloca las tareas a su hora y las sin hora en la hora por de
     await page.close();
   }
 });
+
+const pressShortcut = (key) =>
+  `window.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(key)}, metaKey: true, bubbles: true }))`;
+const clickRole = (role, label) =>
+  `[...document.querySelectorAll('[role=${role}]')].find((element) => element.textContent.includes(${JSON.stringify(label)}))?.click()`;
+
+test("⌘K abre la paleta, busca sin tildes y lleva a la sección", async () => {
+  const page = await open("target=dashboard&state=seen", { width: 1180, height: 760 });
+  try {
+    await page.evaluate(pressShortcut("k"));
+    await page.waitFor("Boolean(document.querySelector('[aria-label=\"Paleta de comandos\"]'))");
+    assert.equal(await page.evaluate("document.activeElement?.getAttribute('aria-label')"), "Buscar");
+    await page.type("papelera");
+    // El IPC simulado no filtra tareas: basta con que la sección sea el primer resultado.
+    await page.waitFor(`document.querySelector('[role=option]')?.textContent === "Papelera"`);
+    await page.key("Enter");
+    await page.waitFor(`document.querySelector('h1')?.textContent === "Papelera"`);
+    assert.equal(await page.evaluate("Boolean(document.querySelector('[aria-label=\"Paleta de comandos\"]'))"), false);
+    assert.ok((await page.evaluate(text)).includes("Clase de Programación"));
+
+    await page.evaluate(pressShortcut("k"));
+    await page.type("concentracion");
+    await page.waitFor(`[...document.querySelectorAll('[role=option]')].some((option) => option.textContent === "Concentración")`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("una tarea repetida muestra su regla y al borrarla se puede deshacer", async () => {
+  const page = await open("target=tasks&state=seen", { width: 1180, height: 760 });
+  try {
+    await page.evaluate(clickRole("button", "Responder correos de estudiantes"));
+    await page.waitFor(`[...document.querySelectorAll('select')].some((select) => select.value === "weekdays")`);
+    assert.ok((await page.evaluate(text)).includes("Saltar esta vez"));
+    await page.click("Eliminar tarea");
+    assert.deepEqual(await page.evaluate(calls("delete_task")), [{ taskId: "k3" }]);
+    await page.waitFor(`${text}.includes("movida a la papelera")`);
+    await page.click("Deshacer");
+    assert.deepEqual(await page.evaluate(calls("restore_trash_item")), [{ itemId: "trash-task" }]);
+    await page.waitFor(`!${text}.includes("movida a la papelera")`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("al cambiar o borrar una repetición se elige a cuáles se aplica", async () => {
+  const page = await open("target=calendar&state=seen", { width: 1180, height: 760 });
+  try {
+    const tutorial = "[...document.querySelectorAll('button')].find((button) => button.textContent.startsWith('Tutoría con estudiantes'))?.click()";
+    await page.evaluate(tutorial);
+    await page.waitFor(`${text}.includes("Editar evento")`);
+    assert.ok((await page.evaluate(text)).includes("Cada semana el"));
+    await page.click("Guardar cambios");
+    await page.waitFor(`${text}.includes("¿A cuáles aplicas el cambio?")`);
+    assert.ok((await page.evaluate(text)).includes("Este y los siguientes"));
+    assert.equal((await page.evaluate(calls("update_event"))).length, 0, "no guarda hasta elegir");
+    await page.click("Solo este evento");
+    const [update] = await page.evaluate(calls("update_event"));
+    assert.equal(update.scope, "this");
+    assert.equal(typeof update.occurrenceStart, "number");
+
+    await page.evaluate(tutorial);
+    await page.waitFor(`${text}.includes("Editar evento")`);
+    await page.click("Eliminar evento");
+    await page.waitFor(`${text}.includes("¿Qué quieres eliminar?")`);
+    await page.click("Todos los eventos");
+    const [removal] = await page.evaluate(calls("delete_event"));
+    assert.equal(removal.scope, "all");
+    await page.waitFor(`${text}.includes("movido a la papelera")`);
+  } finally {
+    await page.close();
+  }
+});
+

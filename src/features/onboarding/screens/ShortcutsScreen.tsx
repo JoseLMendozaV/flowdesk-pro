@@ -21,6 +21,19 @@ const appShortcuts: { section: string; featureId: string; keys: { keys: string; 
     ],
   },
   {
+    section: "Paleta de comandos",
+    featureId: "command-palette",
+    keys: [
+      { keys: "⌘K", label: "Buscar tareas, proyectos y notas, o ir a cualquier sección" },
+      { keys: "↑ ↓ · ↵", label: "Elegir un resultado y abrirlo" },
+    ],
+  },
+  {
+    section: "Papelera",
+    featureId: "trash",
+    keys: [{ keys: "⌘Z", label: "Deshacer el último borrado mientras se ve el aviso" }],
+  },
+  {
     section: "General",
     featureId: "dashboard",
     keys: [

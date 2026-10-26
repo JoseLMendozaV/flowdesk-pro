@@ -1,6 +1,10 @@
+import type { RecurrenceRule } from "./recurrence";
 import type { TaskPriority, TaskStatus } from "./tasks";
 
-/** Los eventos de todo el día terminan a medianoche del día siguiente al último (fin exclusivo). */
+/**
+ * Los eventos de todo el día terminan a medianoche del día siguiente al último (fin exclusivo).
+ * En uno que se repite, `startsAt` y `endsAt` son los de la repetición y `seriesStartsAt` el de la primera.
+ */
 export type CalendarEvent = {
   id: string;
   title: string;
@@ -13,7 +17,12 @@ export type CalendarEvent = {
   isAllDay: boolean;
   location: string | null;
   reminderMinutes: number | null;
+  recurrence: RecurrenceRule | null;
+  seriesStartsAt: number;
 };
+
+/** A qué repeticiones de un evento se aplica un cambio o un borrado. */
+export type EventScope = "this" | "following" | "all";
 
 export type EventInput = {
   title: string;
@@ -24,6 +33,7 @@ export type EventInput = {
   isAllDay: boolean;
   location: string | null;
   reminderMinutes: number | null;
+  recurrence: RecurrenceRule | null;
 };
 
 export type CalendarTask = {

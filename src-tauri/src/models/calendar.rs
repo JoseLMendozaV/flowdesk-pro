@@ -1,7 +1,9 @@
+use crate::recurrence::RecurrenceRule;
 use serde::{Deserialize, Serialize};
 
 /// Los eventos de todo el día empiezan a medianoche local del primer día y terminan
-/// a medianoche del día siguiente al último (fin exclusivo).
+/// a medianoche del día siguiente al último (fin exclusivo). En un evento que se repite,
+/// `starts_at` y `ends_at` son los de la repetición y `series_starts_at` el de la primera.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CalendarEvent {
@@ -16,6 +18,8 @@ pub struct CalendarEvent {
     pub is_all_day: bool,
     pub location: Option<String>,
     pub reminder_minutes: Option<i64>,
+    pub recurrence: Option<RecurrenceRule>,
+    pub series_starts_at: i64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -29,6 +33,16 @@ pub struct EventInput {
     pub is_all_day: bool,
     pub location: Option<String>,
     pub reminder_minutes: Option<i64>,
+    pub recurrence: Option<RecurrenceRule>,
+}
+
+/// A qué repeticiones de un evento se aplica un cambio o un borrado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventScope {
+    This,
+    Following,
+    All,
 }
 
 /// Tarea con fecha límite dentro del intervalo consultado.

@@ -1,3 +1,4 @@
+use crate::recurrence::RecurrenceRule;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +30,9 @@ pub struct TaskSummary {
     pub subtasks_completed: i64,
     pub note_count: i64,
     pub tags: Vec<Tag>,
+    pub recurrence: Option<RecurrenceRule>,
+    /// Repetición creada al completarla.
+    pub recurrence_next_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -73,6 +77,8 @@ pub struct TaskInput {
     pub project_id: Option<String>,
     pub estimated_minutes: Option<i64>,
     pub tags: Vec<String>,
+    /// Exige fecha límite: la regla se cuenta desde ella.
+    pub recurrence: Option<RecurrenceRule>,
     /// Solo al crear: nota de origen que quedará vinculada.
     pub note_id: Option<String>,
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ExternalLink, Link2, Plus, Target, Timer, Trash2, Unlink, X } from "lucide-react";
+import { ExternalLink, Link2, Plus, Repeat, SkipForward, Target, Timer, Trash2, Unlink, X } from "lucide-react";
 import { useDataChanged } from "../../hooks/useDataChanged";
 import { useEscape } from "../../hooks/useEscape";
 import { useAppStore } from "../../stores/appStore";
@@ -14,7 +14,11 @@ import {
 } from "../../services/format";
 import type { Note } from "../../types/dashboard";
 import type { ProjectSummary } from "../../types/projects";
+import type { RecurrenceRule } from "../../types/recurrence";
 import type { TaskDetail, TaskInput, TaskPriority, TaskStatus } from "../../types/tasks";
+import { RecurrenceField } from "../recurrence/RecurrenceField";
+import { followStart } from "../recurrence/recurrenceRules";
+import { useUndoStore } from "../trash/undoStore";
 import { TaskCheck } from "./TaskRow";
 import { priorityOptions, statusOptions } from "./taskMeta";
 
@@ -28,6 +32,7 @@ type Draft = {
   projectId: string;
   estimatedMinutes: string;
   tags: string[];
+  recurrence: RecurrenceRule | null;
 };
 
 function draftFrom(task: TaskDetail): Draft {
@@ -41,6 +46,7 @@ function draftFrom(task: TaskDetail): Draft {
     projectId: task.projectId ?? "",
     estimatedMinutes: task.estimatedMinutes === null ? "" : String(task.estimatedMinutes),
     tags: task.tags.map((tag) => tag.name),
+    recurrence: task.recurrence,
   };
 }
 
@@ -57,6 +63,7 @@ function inputFrom(draft: Draft): TaskInput {
     projectId: draft.projectId || null,
     estimatedMinutes: minutes ? Math.max(0, Math.round(Number(minutes))) : null,
     tags: draft.tags,
+    recurrence: due.dueAt === null ? null : draft.recurrence,
   };
 }
 
@@ -134,7 +141,9 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
       try {
         const saved = await flowdeskApi.updateTask(taskId, inputFrom(draft));
         lastSaved.current = signature;
-        setDetail(saved);
+        // Completar una tarea que se repite le quita la regla (pasa a la siguiente): se refleja si no hay más cambios.
+        if (JSON.stringify(draftRef.current) === signature) applyServer(saved);
+        else setDetail(saved);
         setError(null);
         setSaveState("saved");
         window.setTimeout(() => setSaveState("idle"), 1200);
@@ -144,10 +153,12 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
       }
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [draft, taskId]);
+  }, [applyServer, draft, taskId]);
 
   useEscape(onClose);
   const selectSection = useAppStore((state) => state.selectSection);
+  const focusTask = useAppStore((state) => state.focusTask);
+  const offerUndo = useUndoStore((state) => state.offer);
 
   async function startTimer(kind: "focus" | "manual") {
     try {
@@ -194,10 +205,20 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
   }
 
   async function remove() {
-    if (!detail || !window.confirm(`¿Eliminar “${detail.title}” y sus subtareas?`)) return;
+    if (!detail) return;
     try {
-      await flowdeskApi.deleteTask(taskId);
+      const itemId = await flowdeskApi.deleteTask(taskId);
+      offerUndo(`Tarea “${detail.title}” movida a la papelera`, itemId);
       onClose();
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  }
+
+  async function skip() {
+    try {
+      applyServer(await flowdeskApi.skipTaskOccurrence(taskId));
+      setError(null);
     } catch (reason) {
       setError(errorMessage(reason));
     }
@@ -225,7 +246,7 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
         <span className="flex-1 text-[10px] text-[var(--muted)]">
           {saveState === "saving" ? "Guardando…" : saveState === "saved" ? "Guardado" : "Los cambios se guardan solos"}
         </span>
-        <button type="button" onClick={() => void remove()} aria-label="Eliminar tarea" title="Eliminar tarea" className="grid size-7 place-items-center rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500">
+        <button type="button" onClick={() => void remove()} aria-label="Eliminar tarea" title="Eliminar tarea (se puede deshacer)" className="grid size-7 place-items-center rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500">
           <Trash2 className="size-3.5" />
         </button>
         <button type="button" onClick={onClose} aria-label="Cerrar detalle" className="grid size-7 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)]">
@@ -256,7 +277,21 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
             </select>
           </Field>
           <Field label="Fecha límite">
-            <input type="date" value={draft.dueDate} onChange={(event) => update({ dueDate: event.target.value, dueTime: event.target.value ? draft.dueTime : "" })} className={fieldClass} />
+            <input
+              type="date"
+              value={draft.dueDate}
+              onChange={(event) => {
+                const dueDate = event.target.value;
+                update({
+                  dueDate,
+                  dueTime: dueDate ? draft.dueTime : "",
+                  recurrence: dueDate
+                    ? followStart(draft.recurrence, timestampFromInputs(draft.dueDate, "").dueAt, timestampFromInputs(dueDate, "").dueAt)
+                    : null,
+                });
+              }}
+              className={fieldClass}
+            />
           </Field>
           <Field label="Hora (opcional)">
             <input type="time" value={draft.dueTime} disabled={!draft.dueDate} onChange={(event) => update({ dueTime: event.target.value })} className={`${fieldClass} disabled:opacity-50`} />
@@ -270,6 +305,29 @@ export function TaskDetailPanel({ taskId, projects, onClose }: TaskDetailPanelPr
           <Field label="Estimado (min)">
             <input type="number" min={0} max={10000} step={5} value={draft.estimatedMinutes} onChange={(event) => update({ estimatedMinutes: event.target.value })} placeholder="—" className={fieldClass} />
           </Field>
+        </div>
+
+        <div data-tour-id="task-recurrence">
+          <RecurrenceField
+            value={draft.recurrence}
+            onChange={(recurrence) => update({ recurrence })}
+            start={timestampFromInputs(draft.dueDate, draft.dueTime).dueAt}
+            kind="task"
+            fieldClass={fieldClass}
+            disabledReason={draft.dueDate ? undefined : "Pon una fecha límite para poder repetirla."}
+          />
+          {detail.recurrence && draft.recurrence && draft.status !== "completed" && draft.status !== "cancelled" && (
+            <button type="button" onClick={() => void skip()} className="mt-1.5 flex items-center gap-1 text-[10px] text-[var(--muted)] hover:text-[var(--accent)]">
+              <SkipForward className="size-3" /> Saltar esta vez y pasar a la siguiente fecha
+            </button>
+          )}
+          {draft.status === "completed" && detail.recurrenceNextId && (
+            <p className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-[var(--accent-soft)] px-2.5 py-1.5 text-[10px] text-[var(--accent)]">
+              <Repeat className="size-3 flex-none" />
+              <span className="flex-1">La siguiente repetición ya está en tus tareas.</span>
+              <button type="button" onClick={() => focusTask(detail.recurrenceNextId!)} className="font-medium hover:underline">Abrir</button>
+            </p>
+          )}
         </div>
 
         <Field label="Etiquetas">

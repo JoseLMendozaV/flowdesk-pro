@@ -11,6 +11,7 @@
     "onboarding:screenshots": "node scripts/onboarding-screenshots/capture.mjs",
     "test:onboarding": "node --test src/features/onboarding/registry/registry.test.ts",
     "test:calendar": "node --test src/features/calendar/calendarDates.test.ts",
+    "test:recurrence": "node --test src/features/recurrence/recurrenceRules.test.ts",
     "test:onboarding-ui": "node --test scripts/onboarding-screenshots/flows.test.mjs",
     "bundle:macos": "bash scripts/bundle-macos.sh",
     "preview": "vite preview",

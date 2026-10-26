@@ -52,7 +52,7 @@ export const tags = [
 const taskSeeds = [
   { id: "k1", title: "Revisar el borrador del capítulo 3", priority: "high", project: "p-thesis", due: at(0, 11), hasTime: true, tags: ["t-writing"], sub: [4, 2], est: 90 },
   { id: "k2", title: "Preparar la clase del jueves", priority: "medium", project: "p-course", due: noon(0), hasTime: false, tags: ["t-class"], sub: [3, 1], est: 60 },
-  { id: "k3", title: "Responder correos de estudiantes", priority: "low", project: "p-course", due: at(0, 17, 30), hasTime: true, tags: [], sub: [0, 0], est: 30 },
+  { id: "k3", title: "Responder correos de estudiantes", priority: "low", project: "p-course", due: at(0, 17, 30), hasTime: true, tags: [], sub: [0, 0], est: 30, repeat: "weekdays" },
   { id: "k4", title: "Corregir la prueba inestable del sensor", priority: "urgent", project: "p-app", due: noon(-1), hasTime: false, tags: ["t-review"], sub: [2, 0], est: 45 },
   { id: "k5", title: "Actualizar la bibliografía", priority: "medium", project: "p-thesis", due: noon(1), hasTime: false, tags: ["t-writing"], sub: [0, 0], est: null },
   { id: "k6", title: "Enviar el resumen del artículo", priority: "high", project: "p-paper", due: at(2, 10), hasTime: true, tags: ["t-writing"], sub: [5, 3], est: 120 },
@@ -82,6 +82,8 @@ export const tasks = taskSeeds.map((seed) => {
     subtasksCompleted: seed.sub[1],
     noteCount: seed.id === "k1" ? 2 : 0,
     tags: tags.filter((tag) => seed.tags.includes(tag.id)),
+    recurrence: "repeat" in seed ? { frequency: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5], fromCompletion: false, until: null } : null,
+    recurrenceNextId: null,
   };
 });
 
@@ -169,9 +171,9 @@ export const noteContexts = {
 };
 
 export const events = [
-  { id: "e1", title: "Tutoría con estudiantes", day: 0, start: [15, 0], end: [16, 0], project: "p-course", location: "Despacho 2.14" },
+  { id: "e1", title: "Tutoría con estudiantes", day: 0, start: [15, 0], end: [16, 0], project: "p-course", location: "Despacho 2.14", weekly: true },
   { id: "e2", title: "Seminario del grupo", day: 1, start: [10, 0], end: [11, 30], project: "p-thesis", location: "Sala de reuniones" },
-  { id: "e3", title: "Clase de Programación", day: 2, start: [9, 0], end: [11, 0], project: "p-course", location: "Aula 3" },
+  { id: "e3", title: "Clase de Programación", day: 2, start: [9, 0], end: [11, 0], project: "p-course", location: "Aula 3", weekly: true },
   { id: "e4", title: "Revisión del panel", day: -1, start: [12, 0], end: [13, 0], project: "p-app", location: null },
   { id: "e5", title: "Llamada con el congreso", day: 3, start: [16, 30], end: [17, 0], project: "p-paper", location: null },
 ].map((event) => {
@@ -188,8 +190,18 @@ export const events = [
     isAllDay: false,
     location: event.location,
     reminderMinutes: 15,
+    recurrence: "weekly" in event ? { frequency: "weekly", interval: 1, weekdays: [], fromCompletion: false, until: null } : null,
+    // Las semanales empezaron la semana pasada: la de esta semana no es la primera.
+    seriesStartsAt: at(event.day - ("weekly" in event ? 7 : 0), event.start[0], event.start[1]),
   };
 });
+
+export const trashItems = [
+  { id: "x1", entityType: "task", entityId: "k10", title: "Revisar la rúbrica antigua", deletedAt: now - 2 * 3600, childCount: 3 },
+  { id: "x2", entityType: "event_occurrences", entityId: "e3", title: "Clase de Programación", deletedAt: now - DAY, childCount: 0, occurrenceStart: at(-5, 9), occurrenceScope: "this" },
+  { id: "x3", entityType: "project", entityId: "p-old", title: "Congreso 2025", deletedAt: now - 4 * DAY, childCount: 6 },
+  { id: "x4", entityType: "event", entityId: "e9", title: "Café con el equipo", deletedAt: now - 12 * DAY, childCount: 0 },
+].map((item) => ({ occurrenceStart: null, occurrenceScope: null, ...item, expiresAt: item.deletedAt + 30 * DAY }));
 
 export const dashboard = {
   todayTasks: listTasks({ view: "today" }).length,
@@ -303,4 +315,5 @@ export const shortcuts = [
 export const capabilities = [
   "dashboard", "tasks", "projects", "notes", "global-shortcuts", "pomodoro", "time-tracking",
   "app-tracking", "calendar", "reminders", "workspaces", "clipboard", "menu-bar", "updates",
+  "recurrence", "trash", "command-palette",
 ];

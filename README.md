@@ -9,6 +9,9 @@ Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se de
 - ventana principal con dashboard conectado a datos reales;
 - SQLite local con migración versionada, claves foráneas, índices y modo WAL;
 - tareas con subtareas, etiquetas, prioridades, fechas con o sin hora, filtros, búsqueda y vistas Hoy/Próximas/Todas/Completadas;
+- tareas y eventos que se repiten (cada día, laborables, semanal, mensual, anual o personalizado; en tareas, también desde que se completan), con «solo este / este y los siguientes / todos» en los eventos;
+- papelera de tareas, proyectos y eventos con «Deshacer» (o ⌘Z) al borrar y restauración completa durante 30 días;
+- paleta de comandos (⌘K) para buscar tareas, proyectos y notas, ir a cualquier sección, cambiar de espacio y crear o empezar algo;
 - vistas de lista y Kanban con panel de detalle y guardado automático;
 - proyectos con estadísticas, progreso, archivado y eliminación protegida;
 - vínculos entre tareas, notas y proyectos;
@@ -60,6 +63,7 @@ npm run build
 npm run test:rust
 npm run test:onboarding
 npm run test:calendar
+npm run test:recurrence
 npm run test:onboarding-ui   # flujos de la guía en Chrome sin interfaz
 ```
 
@@ -116,7 +120,7 @@ El script sube la versión en `package.json`, `Cargo.toml`, `Cargo.lock` y `taur
 
 ## Datos locales
 
-La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, la novena guarda las preferencias y el progreso de la bienvenida, y la décima añade el contenido enriquecido de las notas, sus versiones, adjuntos y contextos sin convertir las notas existentes. Los adjuntos viven en `note-attachments/` dentro del mismo directorio; SQLite solo guarda su referencia. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
+La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, la novena guarda las preferencias y el progreso de la bienvenida, la décima añade el contenido enriquecido de las notas, sus versiones, adjuntos y contextos sin convertir las notas existentes, y la undécima añade las reglas de repetición de tareas y eventos y la papelera. Los adjuntos viven en `note-attachments/` dentro del mismo directorio; SQLite solo guarda su referencia. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
 
 - `foreign_keys = ON`;
 - `journal_mode = WAL`;
@@ -142,6 +146,7 @@ No hay telemetría ni servicios remotos obligatorios.
 - [Estado de la Fase 5](docs/PHASE_05.md)
 - [Estado de la Fase 6](docs/PHASE_06.md)
 - [Estado de la Fase 7: notas flotantes 2.0](docs/PHASE_07.md)
+- [Repeticiones, papelera y paleta de comandos (0.6.0)](docs/MEJORAS_0.6.md)
 - [Bienvenida, recorrido y novedades](docs/ONBOARDING.md)
 
 Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/).

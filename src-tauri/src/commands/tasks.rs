@@ -1,4 +1,5 @@
 use crate::{
+    commands::trash::trash_task,
     commands::{
         dashboard::today_bounds,
         workspaces::{active_workspace, active_workspace_id, task_scope},
@@ -8,6 +9,7 @@ use crate::{
         LinkedNote, Subtask, Tag, TaskDetail, TaskFilter, TaskInput, TaskSort, TaskSummary,
         TaskView,
     },
+    recurrence::RecurrenceRule,
 };
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value};
@@ -31,7 +33,8 @@ const TASK_SELECT: &str =
             (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.is_completed = 1),
             (SELECT COUNT(*) FROM task_notes tn WHERE tn.task_id = t.id),
             (SELECT json_group_array(json_object('id', g.id, 'name', g.name, 'color', g.color))
-             FROM task_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.task_id = t.id)
+             FROM task_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.task_id = t.id),
+            t.recurrence_rule, t.recurrence_next_id
      FROM tasks t LEFT JOIN projects p ON p.id = t.project_id";
 
 const PRIORITY_RANK: &str = "CASE t.priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3
@@ -48,6 +51,7 @@ struct ValidTask {
     project_id: Option<String>,
     estimated_minutes: Option<i64>,
     tags: Vec<String>,
+    recurrence: Option<RecurrenceRule>,
 }
 
 fn map_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskSummary> {
@@ -75,6 +79,8 @@ fn map_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskSummary> {
         subtasks_completed: row.get(15)?,
         note_count: row.get(16)?,
         tags,
+        recurrence: RecurrenceRule::parse(row.get::<_, Option<String>>(18)?.as_deref()),
+        recurrence_next_id: row.get(19)?,
     })
 }
 
@@ -223,6 +229,15 @@ fn validate_task(database: &Database, input: TaskInput) -> Result<ValidTask, Str
     {
         return Err("El tiempo estimado debe estar entre 0 y 10 000 minutos".to_string());
     }
+    let recurrence = match input.recurrence {
+        Some(rule) => {
+            let due_at = input
+                .due_at
+                .ok_or_else(|| "Para repetir una tarea, ponle una fecha".to_string())?;
+            Some(rule.normalized(due_at, true)?)
+        }
+        None => None,
+    };
     let project_id = input.project_id.filter(|id| !id.is_empty());
     if let Some(project_id) = &project_id {
         require_id(project_id, "Identificador de proyecto no válido")?;
@@ -243,6 +258,7 @@ fn validate_task(database: &Database, input: TaskInput) -> Result<ValidTask, Str
         project_id,
         estimated_minutes: input.estimated_minutes,
         tags: normalize_tags(input.tags)?,
+        recurrence,
     })
 }
 
@@ -261,7 +277,11 @@ pub(crate) fn prune_unused_tags(connection: &Connection) -> rusqlite::Result<()>
     Ok(())
 }
 
-fn sync_tags(connection: &Connection, task_id: &str, names: &[String]) -> rusqlite::Result<()> {
+pub(crate) fn sync_tags(
+    connection: &Connection,
+    task_id: &str,
+    names: &[String],
+) -> rusqlite::Result<()> {
     connection.execute("DELETE FROM task_tags WHERE task_id = ?1", [task_id])?;
     for name in names {
         connection.execute(
@@ -316,8 +336,8 @@ pub fn insert_task(database: &Database, input: TaskInput) -> Result<TaskDetail, 
         transaction.execute(
             "INSERT INTO tasks(id, title, description, status, priority, project_id,
                 estimated_minutes, due_at, due_has_time, completed_at, created_at, updated_at,
-                workspace_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12)",
+                workspace_id, recurrence_rule)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?13)",
             params![
                 id,
                 task.title,
@@ -330,7 +350,8 @@ pub fn insert_task(database: &Database, input: TaskInput) -> Result<TaskDetail, 
                 task.due_has_time,
                 completed_at,
                 now,
-                workspace_id
+                workspace_id,
+                task.recurrence.as_ref().map(RecurrenceRule::to_json)
             ],
         )?;
         sync_tags(&transaction, &id, &task.tags)?;
@@ -357,12 +378,13 @@ pub fn modify_task(
     let now = Utc::now().timestamp();
     database.with_connection_mut(|connection| {
         let transaction = connection.transaction()?;
+        let was_completed = is_completed(&transaction, task_id)?;
         transaction.execute(
             "UPDATE tasks SET title = ?1, description = ?2, status = ?3, priority = ?4,
                 project_id = ?5, estimated_minutes = ?6, due_at = ?7, due_has_time = ?8,
                 completed_at = CASE WHEN ?3 = 'completed' THEN COALESCE(completed_at, ?9)
                                     ELSE NULL END,
-                updated_at = ?9
+                updated_at = ?9, recurrence_rule = ?11
              WHERE id = ?10",
             params![
                 task.title,
@@ -374,10 +396,12 @@ pub fn modify_task(
                 task.due_at,
                 task.due_has_time,
                 now,
-                task_id
+                task_id,
+                task.recurrence.as_ref().map(RecurrenceRule::to_json)
             ],
         )?;
         sync_tags(&transaction, task_id, &task.tags)?;
+        apply_recurrence(&transaction, task_id, was_completed, now)?;
         let detail =
             query_detail(&transaction, task_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
         transaction.commit()?;
@@ -393,8 +417,10 @@ pub fn change_status(
     require_task(database, task_id)?;
     validate_status(status)?;
     let now = Utc::now().timestamp();
-    database.with_connection(|connection| {
-        connection.execute(
+    database.with_connection_mut(|connection| {
+        let transaction = connection.transaction()?;
+        let was_completed = is_completed(&transaction, task_id)?;
+        transaction.execute(
             "UPDATE tasks SET status = ?1,
                 completed_at = CASE WHEN ?1 = 'completed' THEN COALESCE(completed_at, ?2)
                                     ELSE NULL END,
@@ -402,18 +428,155 @@ pub fn change_status(
              WHERE id = ?3",
             params![status, now, task_id],
         )?;
-        Ok(())
+        apply_recurrence(&transaction, task_id, was_completed, now)?;
+        transaction.commit()
     })?;
     load_detail(database, task_id)
 }
 
-pub fn remove_task(database: &Database, task_id: &str) -> Result<(), String> {
+fn is_completed(connection: &Connection, task_id: &str) -> rusqlite::Result<bool> {
+    connection.query_row(
+        "SELECT status = 'completed' FROM tasks WHERE id = ?1",
+        [task_id],
+        |row| row.get(0),
+    )
+}
+
+/// Completar una tarea que se repite crea la siguiente y le pasa la regla. Reabrirla
+/// antes de tocar esa siguiente la deshace, para que un clic por error no deje duplicados.
+fn apply_recurrence(
+    connection: &Connection,
+    task_id: &str,
+    was_completed: bool,
+    now: i64,
+) -> rusqlite::Result<()> {
+    let (completed, rule, due_at, next_id): (bool, Option<String>, Option<i64>, Option<String>) =
+        connection.query_row(
+            "SELECT status = 'completed', recurrence_rule, due_at, recurrence_next_id
+             FROM tasks WHERE id = ?1",
+            [task_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )?;
+    if completed && !was_completed {
+        if let (Some(rule), Some(due_at)) = (RecurrenceRule::parse(rule.as_deref()), due_at) {
+            spawn_next(connection, task_id, &rule, due_at, now)?;
+        }
+    } else if !completed
+        && was_completed
+        && let Some(next_id) = next_id
+    {
+        undo_next(connection, task_id, &next_id)?;
+    }
+    Ok(())
+}
+
+fn spawn_next(
+    connection: &Connection,
+    task_id: &str,
+    rule: &RecurrenceRule,
+    due_at: i64,
+    now: i64,
+) -> rusqlite::Result<()> {
+    let Some(next_due) = rule.next_task_due(due_at, now) else {
+        return Ok(());
+    };
+    let rule = rule
+        .clone()
+        .normalized(next_due, true)
+        .unwrap_or_else(|_| rule.clone());
+    let next_id = Uuid::new_v4().to_string();
+    connection.execute(
+        "INSERT INTO tasks(id, title, description, status, priority, project_id, workspace_id,
+            estimated_minutes, due_at, due_has_time, recurrence_rule, recurrence_pristine,
+            created_at, updated_at)
+         SELECT ?1, title, description, 'pending', priority, project_id, workspace_id,
+            estimated_minutes, ?2, due_has_time, ?3, 1, ?4, ?4
+         FROM tasks WHERE id = ?5",
+        params![next_id, next_due, rule.to_json(), now, task_id],
+    )?;
+    connection.execute(
+        "INSERT INTO task_tags(task_id, tag_id) SELECT ?1, tag_id FROM task_tags WHERE task_id = ?2",
+        params![next_id, task_id],
+    )?;
+    connection.execute(
+        "INSERT INTO task_notes(task_id, note_id) SELECT ?1, note_id FROM task_notes WHERE task_id = ?2",
+        params![next_id, task_id],
+    )?;
+    let subtasks: Vec<(String, i64)> = connection
+        .prepare("SELECT title, position FROM subtasks WHERE task_id = ?1 ORDER BY position")?
+        .query_map([task_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    for (title, position) in subtasks {
+        connection.execute(
+            "INSERT INTO subtasks(id, task_id, title, position, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![Uuid::new_v4().to_string(), next_id, title, position, now],
+        )?;
+    }
+    connection.execute(
+        "UPDATE tasks SET recurrence_rule = NULL, recurrence_next_id = ?1 WHERE id = ?2",
+        params![next_id, task_id],
+    )?;
+    Ok(())
+}
+
+fn undo_next(connection: &Connection, task_id: &str, next_id: &str) -> rusqlite::Result<()> {
+    let untouched_rule: Option<Option<String>> = connection
+        .query_row(
+            "SELECT recurrence_rule FROM tasks t
+             WHERE t.id = ?1 AND t.recurrence_pristine = 1
+             AND NOT EXISTS (SELECT 1 FROM time_entries e WHERE e.task_id = t.id)
+             AND NOT EXISTS (SELECT 1 FROM pomodoro_sessions s WHERE s.task_id = t.id)",
+            [next_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(rule) = untouched_rule {
+        connection.execute("DELETE FROM tasks WHERE id = ?1", [next_id])?;
+        connection.execute(
+            "UPDATE tasks SET recurrence_rule = ?1, recurrence_next_id = NULL WHERE id = ?2",
+            params![rule, task_id],
+        )?;
+        prune_unused_tags(connection)?;
+    }
+    Ok(())
+}
+
+/// Pasa una tarea repetida a su siguiente fecha sin completarla.
+pub fn skip_occurrence(database: &Database, task_id: &str) -> Result<TaskDetail, String> {
+    require_task(database, task_id)?;
+    let (rule, due_at): (Option<String>, Option<i64>) = database.with_connection(|connection| {
+        connection.query_row(
+            "SELECT recurrence_rule, due_at FROM tasks WHERE id = ?1",
+            [task_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+    })?;
+    let (Some(rule), Some(due_at)) = (RecurrenceRule::parse(rule.as_deref()), due_at) else {
+        return Err("La tarea no se repite".to_string());
+    };
+    let now = Utc::now().timestamp();
+    let next_due = rule
+        .next_task_due(due_at, now)
+        .ok_or_else(|| "La repetición no tiene más fechas".to_string())?;
+    let rule = rule.normalized(next_due, true)?;
+    database.with_connection(|connection| {
+        connection.execute(
+            "UPDATE tasks SET due_at = ?1, recurrence_rule = ?2, updated_at = ?3 WHERE id = ?4",
+            params![next_due, rule.to_json(), now, task_id],
+        )
+    })?;
+    load_detail(database, task_id)
+}
+
+/// Lleva la tarea a la papelera y devuelve el elemento para poder deshacerlo.
+pub fn remove_task(database: &Database, task_id: &str) -> Result<String, String> {
     require_task(database, task_id)?;
     database.with_connection_mut(|connection| {
         let transaction = connection.transaction()?;
-        transaction.execute("DELETE FROM tasks WHERE id = ?1", [task_id])?;
-        prune_unused_tags(&transaction)?;
-        transaction.commit()
+        let item_id = trash_task(&transaction, task_id, Utc::now().timestamp())?;
+        transaction.commit()?;
+        Ok(item_id)
     })
 }
 
@@ -724,10 +887,22 @@ pub fn delete_task(
     task_id: String,
     database: State<'_, Database>,
     app: AppHandle,
-) -> Result<(), String> {
-    remove_task(&database, &task_id)?;
+) -> Result<String, String> {
+    let item_id = remove_task(&database, &task_id)?;
     notify(&app);
-    Ok(())
+    let _ = app.emit("flowdesk://data-changed", "trash");
+    Ok(item_id)
+}
+
+#[tauri::command]
+pub fn skip_task_occurrence(
+    task_id: String,
+    database: State<'_, Database>,
+    app: AppHandle,
+) -> Result<TaskDetail, String> {
+    let task = skip_occurrence(&database, &task_id)?;
+    notify(&app);
+    Ok(task)
 }
 
 #[tauri::command]
@@ -1092,5 +1267,101 @@ mod tests {
             .expect("delete note");
         let detail = load_detail(&database, &task.summary.id).expect("task survives");
         assert!(detail.notes.is_empty());
+    }
+
+    fn daily_from(due_at: i64) -> TaskInput {
+        TaskInput {
+            due_at: Some(due_at),
+            recurrence: Some(RecurrenceRule {
+                frequency: crate::recurrence::Frequency::Daily,
+                interval: 1,
+                weekdays: Vec::new(),
+                from_completion: false,
+                until: None,
+                day_of_month: None,
+            }),
+            tags: vec!["Rutina".to_string()],
+            ..titled("Regar las plantas")
+        }
+    }
+
+    fn task_count(database: &Database) -> i64 {
+        database
+            .with_connection(|connection| {
+                connection.query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))
+            })
+            .expect("count")
+    }
+
+    #[test]
+    fn recurring_tasks_need_a_date() {
+        let database = Database::in_memory();
+        let input = TaskInput {
+            due_at: None,
+            ..daily_from(0)
+        };
+        assert_eq!(
+            insert_task(&database, input).unwrap_err(),
+            "Para repetir una tarea, ponle una fecha"
+        );
+    }
+
+    #[test]
+    fn completing_a_recurring_task_creates_the_next_one() {
+        let database = Database::in_memory();
+        let (today_start, tomorrow_start) = today_bounds().expect("bounds");
+        let task = insert_task(&database, daily_from(today_start + 9 * 3600)).expect("task");
+        insert_subtask(&database, &task.summary.id, "Terraza").expect("subtask");
+        let detail = insert_subtask(&database, &task.summary.id, "Salón").expect("subtask");
+        modify_subtask(&database, &detail.subtasks[0].id, None, Some(true)).expect("done");
+
+        let done = change_status(&database, &task.summary.id, "completed").expect("complete");
+        assert!(done.summary.recurrence.is_none());
+        let next_id = done.summary.recurrence_next_id.clone().expect("next");
+        let next = load_detail(&database, &next_id).expect("next task");
+        assert_eq!(next.summary.status, "pending");
+        assert_eq!(next.summary.due_at, Some(tomorrow_start + 9 * 3600));
+        assert!(next.summary.recurrence.is_some());
+        assert_eq!(next.summary.tags[0].name, "Rutina");
+        assert_eq!(next.subtasks.len(), 2);
+        assert!(next.subtasks.iter().all(|subtask| !subtask.is_completed));
+
+        // Completar de nuevo la ya completada no crea otra.
+        change_status(&database, &task.summary.id, "completed").expect("again");
+        assert_eq!(task_count(&database), 2);
+    }
+
+    #[test]
+    fn reopening_undoes_an_untouched_repetition() {
+        let database = Database::in_memory();
+        let (today_start, _) = today_bounds().expect("bounds");
+        let task = insert_task(&database, daily_from(today_start + 9 * 3600)).expect("task");
+        let id = task.summary.id;
+
+        change_status(&database, &id, "completed").expect("complete");
+        let reopened = change_status(&database, &id, "pending").expect("reopen");
+        assert_eq!(task_count(&database), 1);
+        assert!(reopened.summary.recurrence.is_some());
+        assert!(reopened.summary.recurrence_next_id.is_none());
+
+        // Si la siguiente ya se tocó, reabrir la anterior no la borra.
+        let done = change_status(&database, &id, "completed").expect("complete");
+        let next_id = done.summary.recurrence_next_id.expect("next");
+        insert_subtask(&database, &next_id, "Abonar").expect("touch");
+        change_status(&database, &id, "pending").expect("reopen");
+        assert_eq!(task_count(&database), 2);
+    }
+
+    #[test]
+    fn skipping_moves_to_the_next_date() {
+        let database = Database::in_memory();
+        let (today_start, tomorrow_start) = today_bounds().expect("bounds");
+        let task = insert_task(&database, daily_from(today_start + 9 * 3600)).expect("task");
+        let skipped = skip_occurrence(&database, &task.summary.id).expect("skip");
+        assert_eq!(skipped.summary.due_at, Some(tomorrow_start + 9 * 3600));
+        assert_eq!(skipped.summary.status, "pending");
+        assert_eq!(task_count(&database), 1);
+        let plain = insert_task(&database, titled("Sin repetir")).expect("plain");
+        assert!(skip_occurrence(&database, &plain.summary.id).is_err());
     }
 }

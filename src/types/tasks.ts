@@ -1,3 +1,5 @@
+import type { RecurrenceRule } from "./recurrence";
+
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "none" | "low" | "medium" | "high" | "urgent";
 export type TaskView = "all" | "today" | "upcoming" | "completed";
@@ -28,6 +30,9 @@ export type TaskSummary = {
   subtasksCompleted: number;
   noteCount: number;
   tags: Tag[];
+  recurrence: RecurrenceRule | null;
+  /** Repetición creada al completarla. */
+  recurrenceNextId: string | null;
 };
 
 export type Subtask = {
@@ -61,6 +66,8 @@ export type TaskInput = {
   projectId?: string | null;
   estimatedMinutes?: number | null;
   tags?: string[];
+  /** Exige fecha límite. */
+  recurrence?: RecurrenceRule | null;
   noteId?: string | null;
 };
 

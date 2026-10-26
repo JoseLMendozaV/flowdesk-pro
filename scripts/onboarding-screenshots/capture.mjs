@@ -21,6 +21,8 @@ const featureShots = {
   calendar: { query: "target=calendar", ...WINDOW },
   workspaces: { query: "target=workspaces", ...WINDOW },
   clipboard: { query: "target=clipboard", ...WINDOW },
+  "command-palette": { query: "target=dashboard&palette=1", ...WINDOW },
+  trash: { query: "target=trash", ...WINDOW },
   "menu-bar": { query: "target=tray", ...TRAY },
 };
 

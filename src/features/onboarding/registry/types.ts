@@ -14,6 +14,8 @@ export type FeatureIconName =
   | "workspaces"
   | "clipboard"
   | "menu-bar"
+  | "search"
+  | "trash"
   | "ai";
 
 export type FeatureTone = "blue" | "violet" | "amber" | "emerald" | "orange" | "rose" | "sky" | "slate";

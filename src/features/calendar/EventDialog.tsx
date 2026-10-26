@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Trash2, X } from "lucide-react";
 import { useEscape } from "../../hooks/useEscape";
 import { flowdeskApi } from "../../services/flowdeskApi";
-import { dateInputValue, errorMessage, timeInputValue } from "../../services/format";
-import type { CalendarEvent, EventInput } from "../../types/calendar";
+import { dateInputValue, errorMessage, formatDate, timeInputValue } from "../../services/format";
+import type { CalendarEvent, EventInput, EventScope } from "../../types/calendar";
+import type { RecurrenceRule } from "../../types/recurrence";
 import { useProjects } from "../projects/useProjects";
+import { RecurrenceField } from "../recurrence/RecurrenceField";
+import { followStart } from "../recurrence/recurrenceRules";
+import { useUndoStore } from "../trash/undoStore";
 import { addDays, fromUnix, unix } from "./calendarDates";
 
 const fieldClass =
@@ -32,6 +36,13 @@ const allDayReminders = [
 
 export type EventDraft = { startsAt: number; endsAt: number; isAllDay: boolean };
 
+/** Cambio pendiente de decidir a qué repeticiones se aplica. */
+type PendingScope = { action: "save"; input: EventInput; ruleChanged: boolean } | { action: "delete" };
+
+function sameRule(left: RecurrenceRule | null, right: RecurrenceRule | null) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function parseDate(value: string, time = "00:00") {
   const [year, month, day] = value.split("-").map(Number);
   const [hours, minutes] = time.split(":").map(Number);
@@ -58,16 +69,25 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
   const [location, setLocation] = useState(event?.location ?? "");
   const [reminder, setReminder] = useState(event?.reminderMinutes == null ? "" : String(event.reminderMinutes));
   const [description, setDescription] = useState(event?.description ?? "");
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(event?.recurrence ?? null);
+  const [pendingScope, setPendingScope] = useState<PendingScope | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const scopeRef = useRef<HTMLDivElement>(null);
   const { projects } = useProjects();
+  const offerUndo = useUndoStore((state) => state.offer);
+  // Editar una repetición de una serie pregunta a cuáles se aplica el cambio.
+  const repeating = Boolean(event?.recurrence);
+  const isFirstOccurrence = !event || event.startsAt === event.seriesStartsAt;
 
   useEffect(() => {
     window.setTimeout(() => titleRef.current?.focus(), 30);
   }, []);
-  useEscape(onClose);
+  useEscape(() => (pendingScope ? setPendingScope(null) : onClose()));
+  useEffect(() => {
+    if (pendingScope) scopeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [pendingScope]);
 
   const reminderOptions = isAllDay ? allDayReminders : timedReminders;
   const reminderValue = reminderOptions.some((option) => option.value === reminder) ? reminder : "";
@@ -77,9 +97,12 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
     if (value && startDate && endDate) {
       const shift = parseDate(value).getTime() - parseDate(startDate).getTime();
       setEndDate(dateInputValue(unix(new Date(parseDate(endDate).getTime() + shift))));
+      setRecurrence((rule) => followStart(rule, unix(parseDate(startDate)), unix(parseDate(value))));
     }
     setStartDate(value);
   }
+
+  const startPreview = startDate ? unix(isAllDay ? parseDate(startDate) : parseDate(startDate, startTime || "00:00")) : null;
 
   async function submit(formEvent: React.FormEvent) {
     formEvent.preventDefault();
@@ -95,28 +118,52 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
       isAllDay,
       location: location.trim() || null,
       reminderMinutes: reminderValue === "" ? null : Number(reminderValue),
+      recurrence,
     };
+    if (event && repeating) {
+      setPendingScope({ action: "save", input, ruleChanged: !sameRule(recurrence, event.recurrence) });
+      return;
+    }
+    await save(input);
+  }
+
+  async function save(input: EventInput, scope?: EventScope) {
     setSaving(true);
     setError(null);
     try {
-      if (event) await flowdeskApi.updateEvent(event.id, input);
+      if (event) await flowdeskApi.updateEvent(event.id, input, scope, repeating ? event.startsAt : undefined);
       else await flowdeskApi.createEvent(input);
       onClose();
     } catch (reason) {
+      setPendingScope(null);
       setError(errorMessage(reason));
     } finally {
       setSaving(false);
     }
   }
 
-  async function remove() {
+  async function remove(scope?: EventScope) {
     if (!event) return;
     try {
-      await flowdeskApi.deleteEvent(event.id);
+      const itemId = await flowdeskApi.deleteEvent(event.id, scope, repeating ? event.startsAt : undefined);
+      const message =
+        scope === "this"
+          ? `Repetición del ${formatDate(event.startsAt)} eliminada`
+          : scope === "following" && !isFirstOccurrence
+            ? `Repeticiones de “${event.title}” eliminadas desde el ${formatDate(event.startsAt)}`
+            : `Evento “${event.title}” movido a la papelera`;
+      offerUndo(message, itemId);
       onClose();
     } catch (reason) {
+      setPendingScope(null);
       setError(errorMessage(reason));
     }
+  }
+
+  function applyScope(scope: EventScope) {
+    if (!pendingScope) return;
+    if (pendingScope.action === "delete") void remove(scope);
+    else void save(pendingScope.input, scope);
   }
 
   return (
@@ -173,27 +220,60 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
               </select>
             </label>
           </div>
+          <RecurrenceField
+            value={recurrence}
+            onChange={setRecurrence}
+            start={startPreview}
+            kind="event"
+            fieldClass={fieldClass}
+          />
           <input value={location} onChange={(changeEvent) => setLocation(changeEvent.target.value)} maxLength={200} placeholder="Ubicación (opcional)" aria-label="Ubicación" className={fieldClass} />
           <textarea value={description} onChange={(changeEvent) => setDescription(changeEvent.target.value)} maxLength={4000} rows={3} placeholder="Notas (opcional)" aria-label="Notas" className={`${fieldClass} resize-none leading-5`} />
         </div>
 
         {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-red-500">{error}</p>}
 
+        {pendingScope && (
+          <div ref={scopeRef} role="group" aria-label="A qué eventos se aplica" className="mt-4 rounded-xl border border-[var(--line-strong)] bg-[var(--inset)] p-3">
+            <p className="mb-2 text-[11px] font-medium">
+              {pendingScope.action === "delete" ? "Este evento se repite. ¿Qué quieres eliminar?" : "Este evento se repite. ¿A cuáles aplicas el cambio?"}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {!(pendingScope.action === "save" && pendingScope.ruleChanged) && (
+                <button type="button" onClick={() => applyScope("this")} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]">
+                  Solo este evento
+                </button>
+              )}
+              {!isFirstOccurrence && (
+                <button type="button" onClick={() => applyScope("following")} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]">
+                  Este y los siguientes
+                </button>
+              )}
+              <button type="button" onClick={() => applyScope("all")} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]">
+                Todos los eventos
+              </button>
+              <button type="button" onClick={() => setPendingScope(null)} className="rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--hover)]">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
         <footer className="mt-5 flex items-center gap-2">
-          {event && (confirmingDelete ? (
-            <span className="flex items-center gap-1.5 text-[11px]">
-              ¿Eliminar?
-              <button type="button" onClick={() => void remove()} className="rounded-lg bg-red-500 px-2.5 py-1.5 font-medium text-white">Eliminar</button>
-              <button type="button" onClick={() => setConfirmingDelete(false)} className="rounded-lg px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--hover)]">No</button>
-            </span>
-          ) : (
-            <button type="button" onClick={() => setConfirmingDelete(true)} aria-label="Eliminar evento" title="Eliminar evento" className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500">
+          {event && (
+            <button
+              type="button"
+              onClick={() => (repeating ? setPendingScope({ action: "delete" }) : void remove())}
+              aria-label="Eliminar evento"
+              title="Eliminar evento (se puede deshacer)"
+              className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-500"
+            >
               <Trash2 className="size-3.5" />
             </button>
-          ))}
+          )}
           <span className="flex-1" />
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-xs text-[var(--muted)] hover:bg-[var(--hover)]">Cancelar</button>
-          <button type="submit" disabled={!title.trim() || saving} className="rounded-lg bg-[var(--accent)] px-3.5 py-2 text-xs font-medium text-white disabled:opacity-50">
+          <button type="submit" disabled={!title.trim() || saving || Boolean(pendingScope)} className="rounded-lg bg-[var(--accent)] px-3.5 py-2 text-xs font-medium text-white disabled:opacity-50">
             {saving ? "Guardando…" : event ? "Guardar cambios" : "Crear evento"}
           </button>
         </footer>

@@ -1,6 +1,6 @@
 import type { CalendarEvent, CalendarRange, CalendarTask } from "../../types/calendar";
 import { eventsOnDay, sameDay, tasksOnDay } from "./calendarDates";
-import { EventChip, TaskChip } from "./CalendarItems";
+import { EventChip, TaskChip, eventKey } from "./CalendarItems";
 
 const weekdays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MAX_ITEMS = 3;
@@ -53,7 +53,7 @@ export function MonthView({ anchor, days, data, today, onOpenDay, onCreate, onOp
               >
                 {day.getDate()}
               </button>
-              {visibleEvents.map((event) => <EventChip key={event.id} event={event} onOpen={onOpenEvent} />)}
+              {visibleEvents.map((event) => <EventChip key={eventKey(event)} event={event} onOpen={onOpenEvent} />)}
               {visibleTasks.map((task) => <TaskChip key={task.id} task={task} onToggle={onToggleTask} />)}
               {hidden > 0 && (
                 <button

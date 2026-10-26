@@ -4,6 +4,7 @@ mod database;
 mod menu;
 mod models;
 mod note_document;
+mod recurrence;
 mod shortcuts;
 mod tray;
 mod windows;
@@ -88,6 +89,7 @@ pub fn run() {
                     chrono::Utc::now().timestamp(),
                 );
             }
+            let _ = commands::trash::purge(&database, chrono::Utc::now().timestamp());
             commands::notes::restore_visible(app.handle(), &database);
             if start_hidden {
                 windows::enter_background_mode(app.handle());
@@ -123,6 +125,7 @@ pub fn run() {
             commands::tasks::update_task,
             commands::tasks::set_task_status,
             commands::tasks::delete_task,
+            commands::tasks::skip_task_occurrence,
             commands::tasks::add_subtask,
             commands::tasks::update_subtask,
             commands::tasks::delete_subtask,
@@ -186,6 +189,10 @@ pub fn run() {
             commands::calendar::create_event,
             commands::calendar::update_event,
             commands::calendar::delete_event,
+            commands::trash::list_trash,
+            commands::trash::restore_trash_item,
+            commands::trash::delete_trash_item,
+            commands::trash::empty_trash,
             commands::reminders::get_reminder_settings,
             commands::reminders::update_reminder_settings,
             commands::reminders::list_reminders,

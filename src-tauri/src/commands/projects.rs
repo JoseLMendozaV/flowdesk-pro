@@ -1,7 +1,7 @@
 use crate::{
     commands::{
         dashboard::today_bounds,
-        tasks::prune_unused_tags,
+        trash::trash_project,
         workspaces::{active_workspace, active_workspace_id, project_scope},
     },
     database::Database,
@@ -234,22 +234,25 @@ pub fn set_archived(
     load_project(database, project_id)
 }
 
-/// Elimina un proyecto. Las notas, sesiones y registros de tiempo nunca se borran:
-/// las claves foráneas `SET NULL` los conservan sin proyecto.
+/// Lleva un proyecto a la papelera. Las notas, sesiones y registros de tiempo nunca
+/// se borran: las claves foráneas `SET NULL` los conservan sin proyecto y restaurarlo
+/// los vuelve a enlazar. Devuelve el elemento de la papelera.
 pub fn remove_project(
     database: &Database,
     project_id: &str,
     mode: ProjectDeleteMode,
-) -> Result<(), String> {
+) -> Result<String, String> {
     load_project(database, project_id)?;
     database.with_connection_mut(|connection| {
         let transaction = connection.transaction()?;
-        if mode == ProjectDeleteMode::DeleteTasks {
-            transaction.execute("DELETE FROM tasks WHERE project_id = ?1", [project_id])?;
-            prune_unused_tags(&transaction)?;
-        }
-        transaction.execute("DELETE FROM projects WHERE id = ?1", [project_id])?;
-        transaction.commit()
+        let item_id = trash_project(
+            &transaction,
+            project_id,
+            mode == ProjectDeleteMode::DeleteTasks,
+            Utc::now().timestamp(),
+        )?;
+        transaction.commit()?;
+        Ok(item_id)
     })
 }
 
@@ -315,11 +318,12 @@ pub fn delete_project(
     mode: ProjectDeleteMode,
     database: State<'_, Database>,
     app: AppHandle,
-) -> Result<(), String> {
-    remove_project(&database, &project_id, mode)?;
+) -> Result<String, String> {
+    let item_id = remove_project(&database, &project_id, mode)?;
     notify(&app);
     let _ = app.emit("flowdesk://data-changed", "tasks");
-    Ok(())
+    let _ = app.emit("flowdesk://data-changed", "trash");
+    Ok(item_id)
 }
 
 #[cfg(test)]

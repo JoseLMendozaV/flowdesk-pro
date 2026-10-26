@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { CalendarEvent, CalendarRange, CalendarTask } from "../../types/calendar";
 import { DAY_MINUTES, eventsOnDay, minutesLabel, placeDayItems, sameDay, startOfDay, tasksOnDay } from "./calendarDates";
-import { EventBlock, EventChip, TaskBlock, TaskChip } from "./CalendarItems";
+import { EventBlock, EventChip, TaskBlock, TaskChip, eventKey } from "./CalendarItems";
 
 const HOUR_HEIGHT = 44;
 const PIXELS_PER_MINUTE = HOUR_HEIGHT / 60;
@@ -60,7 +60,7 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
                 <span className={`grid min-w-5 place-items-center rounded-full px-1 text-[12px] font-semibold tabular-nums ${isToday ? "bg-[var(--accent)] text-white" : ""}`}>{day.getDate()}</span>
               </button>
               <div role="gridcell" onClick={() => onCreateAllDay(day)} className="min-h-6 space-y-0.5 px-1 pb-1">
-                {allDay.map((event) => <EventChip key={event.id} event={event} onOpen={onOpenEvent} />)}
+                {allDay.map((event) => <EventChip key={eventKey(event)} event={event} onOpen={onOpenEvent} />)}
                 {untimed.map((task) => <TaskChip key={task.id} task={task} onToggle={onToggleTask} />)}
               </div>
             </div>
@@ -92,7 +92,7 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
               >
                 {placed.map((item) => (
                   <div
-                    key={item.kind === "event" ? item.event.id : `task-${item.task.id}`}
+                    key={item.kind === "event" ? eventKey(item.event) : `task-${item.task.id}`}
                     className="absolute z-[1] px-px"
                     style={{
                       top: item.top * PIXELS_PER_MINUTE,

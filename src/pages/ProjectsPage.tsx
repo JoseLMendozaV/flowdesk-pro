@@ -19,6 +19,7 @@ import { DeleteProjectDialog } from "../features/projects/DeleteProjectDialog";
 import { ProjectDialog, projectStatusOptions } from "../features/projects/ProjectDialog";
 import { useProjects } from "../features/projects/useProjects";
 import { TaskWorkspace } from "../features/tasks/TaskWorkspace";
+import { useAppStore } from "../stores/appStore";
 import { useDataChanged } from "../hooks/useDataChanged";
 import { flowdeskApi } from "../services/flowdeskApi";
 import { errorMessage, formatDate, formatDuration } from "../services/format";
@@ -161,6 +162,15 @@ export function ProjectsPage() {
   const { projects, loading, error } = useProjects(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const focusedProjectId = useAppStore((state) => state.focusedProjectId);
+  const clearFocusedProject = useAppStore((state) => state.clearFocusedProject);
+
+  // Abierto desde la paleta de comandos.
+  useEffect(() => {
+    if (!focusedProjectId) return;
+    setSelectedId(focusedProjectId);
+    clearFocusedProject();
+  }, [clearFocusedProject, focusedProjectId]);
 
   const selected = projects.find((project) => project.id === selectedId);
   if (selected) return <ProjectDetail project={selected} projects={projects} onBack={() => setSelectedId(null)} />;

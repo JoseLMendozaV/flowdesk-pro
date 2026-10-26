@@ -30,7 +30,13 @@ Reglas de eliminación (los recordatorios se borran con su entidad mediante disp
 - Proyecto: el usuario elige conservar las tareas (`SET NULL`) o borrarlas. Notas, sesiones y registros de tiempo nunca se borran. Archivar (`archived_at`) es la alternativa no destructiva y conserva el estado previo.
 - Nota: borra su ventana y sus vínculos con tareas; las tareas se conservan.
 
-Las ventanas comunican cambios mediante el evento `flowdesk://data-changed` con el tipo afectado (`tasks`, `projects`, `notes`, `time`, `calendar`, `reminders`, `workspaces`, `clipboard`, `app-usage`, `onboarding`); cada vista vuelve a consultar solo lo que muestra. El servicio de recordatorios escucha el mismo evento en Rust.
+Tareas, proyectos y eventos pasan antes por la papelera (`commands/trash.rs`). Se guarda en `trash_items` una instantánea de las filas que se van a borrar y de las referencias que las reglas anteriores dejarán en NULL, y después se borra de verdad. Así ninguna consulta tiene que excluir lo borrado. Restaurar reinserta con los mismos identificadores, omite lo que ya no existe y vuelve a enlazar solo lo que sigue sin enlazar. Se purga a los 30 días.
+
+### Repeticiones
+
+Tareas y eventos guardan su regla como JSON validado en `recurrence.rs`, con fechas en hora local de pared. Una tarea repetida es una fila por repetición: al completarla se crea la siguiente. Un evento repetido es una sola fila con excepciones, y `list_calendar` la expande en Rust para el rango pedido. El servicio de recordatorios calcula en Rust el aviso de la próxima repetición y lo reconcilia con los demás en SQL.
+
+Las ventanas comunican cambios mediante el evento `flowdesk://data-changed` con el tipo afectado (`tasks`, `projects`, `notes`, `time`, `calendar`, `reminders`, `workspaces`, `clipboard`, `app-usage`, `onboarding`, `trash`); cada vista vuelve a consultar solo lo que muestra. El servicio de recordatorios escucha el mismo evento en Rust.
 
 ### Espacios de trabajo
 

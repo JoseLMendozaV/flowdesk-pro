@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { CommandPalette } from "./features/palette/CommandPalette";
 import { QuickTaskDialog } from "./features/tasks/QuickTaskDialog";
+import { UndoToast } from "./features/trash/UndoToast";
 import { PreferencesDialog } from "./features/tray/PreferencesDialog";
 import { TrayPanel } from "./features/tray/TrayPanel";
 import { OnboardingManager } from "./features/onboarding/components/OnboardingManager";
@@ -15,6 +17,7 @@ import { WorkspacesPage } from "./pages/WorkspacesPage";
 import { NotesPage } from "./pages/NotesPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { TasksPage } from "./pages/TasksPage";
+import { TrashPage } from "./pages/TrashPage";
 import { useAppStore } from "./stores/appStore";
 
 // Ventanas propias: su código (el editor de notas, la guía) se carga solo al abrirlas.
@@ -52,6 +55,7 @@ function MainApplication() {
   const selectedSection = useAppStore((state) => state.selectedSection);
   const selectSection = useAppStore((state) => state.selectSection);
   const openTasks = useAppStore((state) => state.openTasks);
+  const setPaletteOpen = useAppStore((state) => state.setPaletteOpen);
 
   useEffect(() => {
     const quickAction = listen<string>("flowdesk://quick-action", (event) => {
@@ -68,6 +72,7 @@ function MainApplication() {
       if (event.payload === "calendar") selectSection("calendar");
       if (event.payload === "workspaces") selectSection("workspaces");
       if (event.payload === "clipboard") selectSection("clipboard");
+      if (event.payload === "trash") selectSection("trash");
     });
     const refresh = Promise.all([listen("flowdesk://activated", refreshDashboard)]);
     return () => {
@@ -77,6 +82,18 @@ function MainApplication() {
     };
   }, [openPreferences, openQuickTask, openTasks, refreshDashboard, selectSection]);
   useDataChanged(["tasks", "projects", "notes", "time", "calendar"], refreshDashboard);
+
+  // ⌘K abre la paleta desde cualquier sección, también con el foco en un campo.
+  useEffect(() => {
+    function handle(event: KeyboardEvent) {
+      if (event.metaKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(!useAppStore.getState().paletteOpen);
+      }
+    }
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, [setPaletteOpen]);
 
   return (
     <>
@@ -97,12 +114,16 @@ function MainApplication() {
           <WorkspacesPage />
         ) : selectedSection === "clipboard" ? (
           <ClipboardPage />
+        ) : selectedSection === "trash" ? (
+          <TrashPage />
         ) : (
           <DashboardPage />
         )}
       </AppShell>
       <QuickTaskDialog />
       <PreferencesDialog />
+      <CommandPalette />
+      <UndoToast />
       <OnboardingManager />
     </>
   );

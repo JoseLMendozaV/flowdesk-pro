@@ -1,4 +1,4 @@
-import { Check, Flag, ListChecks, StickyNote } from "lucide-react";
+import { Check, Flag, ListChecks, Repeat, StickyNote } from "lucide-react";
 import { describeDue } from "../../services/format";
 import type { TaskSummary } from "../../types/tasks";
 import { isClosed, priorityMeta } from "./taskMeta";
@@ -13,6 +13,11 @@ export function TaskMetaLine({ task, hideProject }: TaskMetaProps) {
       {due && (
         <span className={!closed && due.overdue ? "font-medium text-red-500" : due.today && !closed ? "text-[var(--accent)]" : ""}>
           {due.label}
+        </span>
+      )}
+      {task.recurrence && (
+        <span className="flex items-center" title="Se repite" aria-label="Se repite">
+          <Repeat className="size-3" />
         </span>
       )}
       {!hideProject && task.projectName && (

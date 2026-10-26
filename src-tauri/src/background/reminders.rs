@@ -6,7 +6,11 @@
 //! (como mucho 60 s) entrega lo que haya vencido sin repetir lo ya entregado.
 
 use super::wakeup::Wakeup;
-use crate::{database::Database, models::ReminderSettings};
+use crate::{
+    database::Database,
+    models::ReminderSettings,
+    recurrence::{RecurrenceRule, parse_exceptions},
+};
 use chrono::{Local, TimeZone, Timelike};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::time::Duration;
@@ -108,8 +112,68 @@ const DESIRED: &str = "desired(entity_type, entity_id, remind_at) AS (
         UNION ALL
         SELECT 'event', id,
                starts_at + CASE WHEN is_all_day = 1 THEN 32400 ELSE 0 END - reminder_minutes * 60
-        FROM calendar_events WHERE reminder_minutes IS NOT NULL
+        FROM calendar_events WHERE reminder_minutes IS NOT NULL AND recurrence_rule IS NULL
+        UNION ALL
+        SELECT 'event', entity_id, remind_at FROM temp.recurring_event_reminders
     )";
+
+/// Aviso de cada evento que se repite: el de la primera repetición que aún no ha pasado.
+/// Si ya hay uno programado que venció durante el reposo, se conserva para entregarlo
+/// tarde, como los demás; nunca se vuelve a uno ya entregado. Se calcula en Rust y se
+/// deja en una tabla temporal para que `DESIRED` lo trate como a los demás.
+fn fill_recurring_events(connection: &Connection, now: i64) -> rusqlite::Result<()> {
+    connection.execute_batch(
+        "CREATE TEMP TABLE IF NOT EXISTS recurring_event_reminders (
+             entity_id TEXT PRIMARY KEY NOT NULL,
+             remind_at INTEGER NOT NULL
+         );
+         DELETE FROM temp.recurring_event_reminders;",
+    )?;
+    let events = connection
+        .prepare(
+            "SELECT e.id, e.starts_at, e.is_all_day, e.reminder_minutes, e.recurrence_rule,
+                    e.recurrence_exceptions, r.remind_at, r.status
+             FROM calendar_events e
+             LEFT JOIN reminders r ON r.entity_type = 'event' AND r.entity_id = e.id
+             WHERE e.reminder_minutes IS NOT NULL AND e.recurrence_rule IS NOT NULL",
+        )?
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, bool>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, Option<i64>>(6)?,
+                row.get::<_, Option<String>>(7)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    for (id, starts_at, is_all_day, minutes, rule, exceptions, last_at, status) in events {
+        let Some(rule) = RecurrenceRule::parse(Some(&rule)) else {
+            continue;
+        };
+        let offset = if is_all_day { 32_400 } else { 0 } - minutes * 60;
+        let threshold = match (last_at, status.as_deref()) {
+            (Some(last_at), Some("scheduled")) if last_at >= now - GRACE_SECONDS => {
+                last_at.min(now - 60)
+            }
+            (Some(last_at), Some("delivered" | "silenced" | "missed")) => {
+                (last_at + 1).max(now - 60)
+            }
+            _ => now - 60,
+        };
+        let exceptions = parse_exceptions(&exceptions);
+        if let Some(occurrence) = rule.first_from(starts_at, &exceptions, threshold - offset) {
+            connection.execute(
+                "INSERT INTO temp.recurring_event_reminders(entity_id, remind_at) VALUES (?1, ?2)",
+                params![id, occurrence + offset],
+            )?;
+        }
+    }
+    Ok(())
+}
 
 /// Sincroniza `reminders` con las entidades. Un aviso nuevo o reprogramado cuya hora
 /// ya pasó queda como perdido: no se avisa de algo que el usuario acaba de fechar en el pasado.
@@ -120,6 +184,7 @@ pub fn reconcile(
 ) -> rusqlite::Result<()> {
     let lead = settings.task_lead_minutes * 60;
     let transaction = connection.transaction()?;
+    fill_recurring_events(&transaction, now)?;
     transaction.execute(
         &format!(
             "WITH {DESIRED}
@@ -217,8 +282,10 @@ pub fn collect_due(
                 "SELECT r.id, r.entity_type, r.remind_at, {REMINDER_TITLE},
                     CASE r.entity_type
                         WHEN 'task' THEN (SELECT due_at FROM tasks WHERE id = r.entity_id)
-                        WHEN 'event' THEN (SELECT starts_at FROM calendar_events
-                                           WHERE id = r.entity_id) END,
+                        WHEN 'event' THEN r.remind_at + (
+                            SELECT reminder_minutes * 60
+                                   - CASE WHEN is_all_day = 1 THEN 32400 ELSE 0 END
+                            FROM calendar_events WHERE id = r.entity_id) END,
                     COALESCE((SELECT is_all_day FROM calendar_events
                               WHERE r.entity_type = 'event' AND id = r.entity_id), 0),
                     (SELECT location FROM calendar_events
@@ -345,6 +412,19 @@ pub fn collect_digest(
         )?;
         Ok((inserted > 0).then_some(notice))
     })
+}
+
+/// Hay avisos vencidos por entregar (o por dar por perdidos).
+pub fn has_due(database: &Database, now: i64) -> bool {
+    database
+        .with_connection(|connection| {
+            connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM reminders WHERE status = 'scheduled' AND remind_at <= ?1)",
+                [now],
+                |row| row.get(0),
+            )
+        })
+        .unwrap_or(false)
 }
 
 /// Hasta el siguiente aviso programado, con un máximo de 60 s para notar a tiempo
@@ -599,6 +679,66 @@ mod tests {
         assert_eq!(status(&database, "nota").as_deref(), Some("delivered"));
         execute(&database, "DELETE FROM calendar_events");
         assert_eq!(status(&database, "evento"), None);
+    }
+
+    #[test]
+    fn recurring_events_remind_each_occurrence_once() {
+        let database = Database::in_memory();
+        let settings = ReminderSettings::default();
+        let remind_at = |database: &Database| -> i64 {
+            database
+                .with_connection(|connection| {
+                    connection.query_row(
+                        "SELECT remind_at FROM reminders WHERE entity_id = 'serie'",
+                        [],
+                        |row| row.get(0),
+                    )
+                })
+                .expect("reminder")
+        };
+        // Diario, empezó hace dos días: el aviso es el de la repetición de hoy.
+        execute(
+            &database,
+            &format!(
+                "INSERT INTO calendar_events(id, title, starts_at, ends_at, reminder_minutes,
+                    recurrence_rule)
+                    VALUES ('serie', 'Clase', {start}, {end}, 10,
+                    '{{\"frequency\":\"daily\",\"interval\":1}}');",
+                start = NOW - 2 * 86_400 + 1_800,
+                end = NOW - 2 * 86_400 + 5_400
+            ),
+        );
+        sync(&database, &settings, NOW);
+        let today = remind_at(&database);
+        assert_eq!(today, NOW + 1_200);
+
+        assert!(!has_due(&database, today - 1));
+        assert!(has_due(&database, today));
+        let notices = collect_due(&database, &settings, &moment(today, 600)).expect("due");
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices[0].title, "Clase");
+        assert!(!has_due(&database, today));
+        assert!(notices[0].body.starts_with("Evento: empieza a las"));
+
+        // Tras entregarlo, se programa el de mañana y no se repite el de hoy.
+        sync(&database, &settings, today + 60);
+        assert_eq!(status(&database, "serie").as_deref(), Some("scheduled"));
+        let tomorrow = remind_at(&database);
+        assert_eq!(tomorrow, today + 86_400);
+        assert!(
+            collect_due(&database, &settings, &moment(today + 120, 600))
+                .expect("due")
+                .is_empty()
+        );
+
+        // Quitar la repetición de mañana salta al día siguiente.
+        let occurrence = tomorrow + 600;
+        execute(
+            &database,
+            &format!("UPDATE calendar_events SET recurrence_exceptions = '[{occurrence}]'"),
+        );
+        sync(&database, &settings, today + 180);
+        assert_eq!(remind_at(&database), tomorrow + 86_400);
     }
 
     #[test]

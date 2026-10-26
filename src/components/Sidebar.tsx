@@ -9,8 +9,10 @@ import {
   Focus,
   FolderKanban,
   Home,
+  Search,
   Settings,
   StickyNote,
+  Trash2,
 } from "lucide-react";
 import logo from "../assets/flowdesk-logo.png";
 import { flowdeskApi } from "../services/flowdeskApi";
@@ -34,6 +36,8 @@ export function Sidebar() {
   const openPreferences = useAppStore((state) => state.openPreferences);
   const selectedSection = useAppStore((state) => state.selectedSection);
   const selectSection = useAppStore((state) => state.selectSection);
+  const setPaletteOpen = useAppStore((state) => state.setPaletteOpen);
+  const trashActive = selectedSection === "trash";
   return (
     // La franja superior y los huecos de la barra lateral mueven la ventana, como una barra de título.
     <aside data-tauri-drag-region className="flex h-full flex-col border-r border-[var(--line)] bg-[var(--sidebar)] px-3 pb-3 pt-12">
@@ -46,6 +50,17 @@ export function Sidebar() {
       </div>
 
       <WorkspaceSwitcher />
+
+      <button
+        type="button"
+        data-tour-id="palette-open"
+        onClick={() => setPaletteOpen(true)}
+        className="mb-3 flex w-full items-center gap-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-left text-[11px] text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--text)]"
+      >
+        <Search className="size-3.5" />
+        <span className="flex-1">Buscar o ir a…</span>
+        <kbd className="rounded border border-[var(--line)] px-1 font-sans text-[9px]">⌘K</kbd>
+      </button>
 
       <nav aria-label="Navegación principal" className="space-y-0.5">
         {navigation.map(({ id, label, icon: Icon, enabled }) => {
@@ -75,6 +90,18 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto border-t border-[var(--line)] pt-3">
+        <button
+          type="button"
+          data-tour-id="nav-trash"
+          onClick={() => selectSection("trash")}
+          aria-current={trashActive ? "page" : undefined}
+          className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12px] ${
+            trashActive ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+          }`}
+        >
+          <Trash2 className="size-[15px]" strokeWidth={trashActive ? 2.2 : 1.8} />
+          Papelera
+        </button>
         <div className="flex items-center gap-1">
           <button
             type="button"
