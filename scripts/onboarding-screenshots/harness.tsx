@@ -11,11 +11,12 @@ import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import * as data from "./demoData";
+import { availableFeatures, revisionMap } from "../../src/features/onboarding/registry/registry";
 import "../../src/styles/globals.css";
 
 const params = new URLSearchParams(window.location.search);
 const target = params.get("target") ?? "dashboard";
-const windowLabel = target === "tray" ? "tray-panel" : target === "onboarding" ? "onboarding" : "main";
+const windowLabel = target === "tray" ? "tray-panel" : target === "onboarding" ? "onboarding" : target === "note" ? `note-${params.get("id") ?? "n1"}` : "main";
 
 function onboardingState() {
   const variant = params.get("state") ?? "first-run";
@@ -31,7 +32,8 @@ function onboardingState() {
     lastSeenAppVersion: variant === "first-run" ? null : "0.1.1",
     lastSeenFeatureRevision: variant === "first-run" ? null : "1:antigua",
     // «news»: un usuario que venía de la 0.1.1 y aún no conoce lo de la 0.2.0.
-    seenFeatures: variant === "news" ? Object.fromEntries(Object.entries(seen).filter(([id]) => !["calendar", "workspaces", "clipboard"].includes(id))) : variant === "seen" ? { ...seen, time: 2, notes: 2, dashboard: 2, "menu-bar": 2 } : {},
+    // «seen»: conoce ya la revisión actual de todo lo disponible.
+    seenFeatures: variant === "news" ? Object.fromEntries(Object.entries(seen).filter(([id]) => !["calendar", "workspaces", "clipboard"].includes(id))) : variant === "seen" || variant === "resume" ? revisionMap(availableFeatures(data.capabilities)) : {},
     lastCompletedStepId: variant === "resume" ? "feature:projects" : null,
     lastOnboardingDate: null,
     appVersion: "0.2.0",
@@ -50,6 +52,17 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_project: (args) => data.projects.find((project) => project.id === args.projectId),
   list_notes: () => data.notes,
   get_note: (args) => data.notes.find((note) => note.id === args.noteId) ?? data.notes[0],
+  update_note: (args) => {
+    const input = args.input as { noteId: string; title: string };
+    const note = data.notes.find((item) => item.id === input.noteId) ?? data.notes[0];
+    // `conflict=1`: otra ventana guardó antes (la revisión no coincide).
+    if (params.get("conflict") === "1") throw "NOTE_CONFLICT";
+    return { ...note, title: input.title, revision: note.revision + 1 };
+  },
+  list_note_attachments: () => data.noteAttachments,
+  get_note_attachment_data: async () => (await fetch(new URL("../../src/assets/flowdesk-logo.png", import.meta.url))).arrayBuffer(),
+  list_note_versions: () => data.noteVersions,
+  get_note_contexts: () => data.noteContexts,
   get_timer_state: () => ({
     ...(params.get("timer") === "idle" ? data.idleTimer : data.timer),
     entry: params.get("entry") === "running" ? data.runningEntry : null,
@@ -108,8 +121,21 @@ mockIPC((command, args) => {
   return handler((args ?? {}) as Record<string, unknown>);
 }, { shouldMockEvents: true });
 
+// `draft=1`: borrador de una sesión que se cerró sin guardar (recuperación).
+if (params.get("draft")) {
+  localStorage.setItem(
+    "flowdesk:note-draft:n1",
+    JSON.stringify({
+      baseRevision: 12,
+      title: "Ideas para el capítulo 3",
+      contentJson: JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Texto recuperado tras el cierre" }] }] }),
+      at: Date.now(),
+    }),
+  );
+}
+
 async function render() {
-  const view = target === "tray" ? "tray" : target === "onboarding" ? "onboarding" : null;
+  const view = target === "tray" ? "tray" : target === "onboarding" ? "onboarding" : target === "note" ? "note" : null;
   const url = new URL(window.location.href);
   if (view) url.searchParams.set("view", view);
   window.history.replaceState(null, "", url);
@@ -126,6 +152,14 @@ async function render() {
   // `return=1`: la visita se lanzó desde la bienvenida y debe volver a ella.
   const returnTo = params.get("return") ? { mode: "welcome", featureId: tour } : null;
   if (tour) window.setTimeout(() => void emit("flowdesk://guided-tour", { featureId: tour, returnTo }), 600);
+  // `panel=<pestaña>`: abre las opciones de la nota en esa pestaña.
+  const panel = params.get("panel");
+  if (panel) {
+    window.setTimeout(() => {
+      document.querySelector<HTMLButtonElement>('[aria-label="Opciones de la nota"]')?.click();
+      window.setTimeout(() => [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent === panel)?.click(), 150);
+    }, 700);
+  }
   if (params.get("demo")) {
     window.setTimeout(() => [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent?.includes("Demostración"))?.click(), 600);
   }

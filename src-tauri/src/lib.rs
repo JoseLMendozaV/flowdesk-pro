@@ -3,6 +3,7 @@ mod commands;
 mod database;
 mod menu;
 mod models;
+mod note_document;
 mod shortcuts;
 mod tray;
 mod windows;
@@ -80,6 +81,13 @@ pub fn run() {
             background::spawn_clipboard(app.handle().clone());
             background::spawn_app_tracking(app.handle().clone());
             let database = app.state::<Database>();
+            if let Ok(root) = commands::note_attachments::root(app.handle()) {
+                let _ = commands::note_attachments::purge_trash(
+                    &database,
+                    &root,
+                    chrono::Utc::now().timestamp(),
+                );
+            }
             commands::notes::restore_visible(app.handle(), &database);
             if start_hidden {
                 windows::enter_background_mode(app.handle());
@@ -141,6 +149,22 @@ pub fn run() {
             commands::notes::hide_note_window,
             commands::notes::archive_note,
             commands::notes::delete_note,
+            commands::notes::list_note_versions,
+            commands::notes::get_note_version,
+            commands::notes::restore_note_version,
+            commands::notes::list_note_history,
+            commands::notes::save_note_conflict_copy,
+            commands::notes::preserve_note_version,
+            commands::notes::set_note_pinned_global,
+            commands::note_attachments::add_note_attachment,
+            commands::note_attachments::attach_note_files,
+            commands::note_attachments::list_note_attachments,
+            commands::note_attachments::get_note_attachment_data,
+            commands::note_attachments::open_note_attachment,
+            commands::note_attachments::delete_note_attachment,
+            commands::note_attachments::open_note_link,
+            commands::note_contexts::get_note_contexts,
+            commands::note_contexts::set_note_context,
             commands::focus::get_timer_state,
             commands::focus::start_pomodoro,
             commands::focus::pause_pomodoro,

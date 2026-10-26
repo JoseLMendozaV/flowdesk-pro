@@ -1,0 +1,413 @@
+/* Notas flotantes 2.0: editor enriquecido sobre el color de cada nota. Los tamaños usan
+   `em`: siguen el tamaño de texto elegido en Apariencia.
+   En la capa `components`: las utilidades de Tailwind de cada elemento siguen ganando. */
+
+@layer components {
+  .note-editor {
+    min-height: 100%;
+    padding: 0.85em 1em 1.2em;
+    line-height: 1.55;
+    outline: none;
+    user-select: text;
+    word-break: break-word;
+  }
+
+  .note-editor > * + * {
+    margin-top: 0.45em;
+  }
+
+  .note-editor h1 {
+    font-size: 1.35em;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .note-editor h2 {
+    font-size: 1.18em;
+    font-weight: 700;
+  }
+
+  .note-editor h3 {
+    font-size: 1.05em;
+    font-weight: 650;
+  }
+
+  .note-editor ul,
+  .note-editor ol {
+    padding-left: 1.3em;
+  }
+
+  .note-editor ul {
+    list-style: disc;
+  }
+
+  .note-editor ol {
+    list-style: decimal;
+  }
+
+  .note-editor li > p {
+    margin: 0.1em 0;
+  }
+
+  .note-editor ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0.1em;
+  }
+
+  .note-editor ul[data-type="taskList"] li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45em;
+  }
+
+  .note-editor ul[data-type="taskList"] li > label {
+    flex: none;
+    margin-top: 0.22em;
+  }
+
+  .note-editor ul[data-type="taskList"] li > label input {
+    width: 0.95em;
+    height: 0.95em;
+    accent-color: rgb(51 65 85);
+  }
+
+  .note-editor ul[data-type="taskList"] li > div {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .note-editor ul[data-type="taskList"] li[data-checked="true"] > div {
+    color: rgb(71 85 105 / 0.7);
+    text-decoration: line-through;
+  }
+
+  .note-editor a {
+    color: rgb(37 99 235);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: text;
+  }
+
+  .note-editor blockquote {
+    border-left: 3px solid rgb(15 23 42 / 0.25);
+    padding-left: 0.7em;
+    color: rgb(51 65 85);
+  }
+
+  .note-editor code {
+    border-radius: 0.3em;
+    background: rgb(15 23 42 / 0.08);
+    padding: 0.05em 0.3em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+  }
+
+  .note-editor pre {
+    overflow-x: auto;
+    border-radius: 0.5em;
+    background: rgb(15 23 42 / 0.82);
+    padding: 0.6em 0.75em;
+    color: rgb(241 245 249);
+  }
+
+  .note-editor pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  .note-editor hr {
+    border: none;
+    border-top: 1px solid rgb(15 23 42 / 0.2);
+    margin: 0.8em 0;
+  }
+
+  .note-editor table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    overflow: hidden;
+    font-size: 0.92em;
+  }
+
+  .note-editor th,
+  .note-editor td {
+    border: 1px solid rgb(15 23 42 / 0.18);
+    padding: 0.25em 0.4em;
+    vertical-align: top;
+  }
+
+  .note-editor th {
+    background: rgb(255 255 255 / 0.35);
+    font-weight: 650;
+    text-align: left;
+  }
+
+  .note-editor .selectedCell {
+    background: rgb(59 130 246 / 0.15);
+  }
+
+  .note-editor p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: rgb(71 85 105 / 0.55);
+    pointer-events: none;
+  }
+
+  .note-editor .ProseMirror-selectednode,
+  .note-editor .is-selected {
+    outline: 2px solid rgb(59 130 246 / 0.55);
+    outline-offset: 2px;
+  }
+
+  /* Imagen adjunta: ancho guardado en el documento, asa de redimensión en la esquina. */
+  .note-image-frame {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    border-radius: 0.45em;
+    line-height: 0;
+  }
+
+  .note-image-frame img {
+    width: 100%;
+    border-radius: 0.45em;
+    box-shadow: 0 2px 10px rgb(15 23 42 / 0.15);
+  }
+
+  .note-image-handle {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 12px;
+    height: 12px;
+    border: 2px solid white;
+    border-radius: 999px;
+    background: rgb(51 65 85);
+    cursor: nwse-resize;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .note-image-frame:hover .note-image-handle,
+  .note-image-frame.is-selected .note-image-handle {
+    opacity: 1;
+  }
+
+  .note-attachment-missing {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.8em;
+    font-size: 0.8em;
+    line-height: 1.3;
+    color: rgb(71 85 105);
+  }
+
+  .note-attachment-missing svg,
+  .note-file-icon svg,
+  .note-file-open svg {
+    width: 1em;
+    height: 1em;
+  }
+
+  .note-file-node {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    border: 1px solid rgb(15 23 42 / 0.12);
+    border-radius: 0.55em;
+    background: rgb(255 255 255 / 0.45);
+    padding: 0.45em 0.6em;
+    font-size: 0.85em;
+  }
+
+  .note-file-icon {
+    display: grid;
+    width: 2em;
+    height: 2em;
+    flex: none;
+    place-items: center;
+    border-radius: 0.45em;
+    background: rgb(15 23 42 / 0.08);
+  }
+
+  .note-file-open {
+    display: grid;
+    width: 1.8em;
+    height: 1.8em;
+    flex: none;
+    place-items: center;
+    border-radius: 0.4em;
+    color: rgb(51 65 85);
+  }
+
+  .note-file-open:hover {
+    background: rgb(15 23 42 / 0.08);
+  }
+
+  /* Barra de formato */
+  .note-tool {
+    display: grid;
+    width: 1.55rem;
+    height: 1.55rem;
+    place-items: center;
+    border-radius: 0.35rem;
+    color: rgb(51 65 85 / 0.85);
+  }
+
+  .note-tool:hover:not(:disabled) {
+    background: rgb(15 23 42 / 0.08);
+  }
+
+  .note-tool.is-active {
+    background: rgb(15 23 42 / 0.14);
+    color: rgb(15 23 42);
+  }
+
+  .note-tool:disabled {
+    opacity: 0.35;
+  }
+
+  .note-tool svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  .note-tool-select {
+    height: 1.55rem;
+    border-radius: 0.35rem;
+    background: transparent;
+    padding: 0 0.2rem;
+    color: rgb(51 65 85);
+    font-size: 0.65rem;
+    outline: none;
+  }
+
+  .note-tool-select:hover {
+    background: rgb(15 23 42 / 0.08);
+  }
+
+  .note-tool-separator {
+    width: 1px;
+    height: 0.9rem;
+    margin: 0 0.15rem;
+    background: rgb(15 23 42 / 0.12);
+  }
+
+  .note-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 0.4rem;
+    background: rgb(255 255 255 / 0.5);
+    padding: 0.22rem 0.5rem;
+    color: rgb(30 41 59);
+    font-size: 0.65rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .note-chip:hover {
+    background: rgb(255 255 255 / 0.75);
+  }
+
+  .note-chip.is-active {
+    background: rgb(30 41 59);
+    color: white;
+  }
+
+  .note-field {
+    border: 1px solid rgb(15 23 42 / 0.12);
+    border-radius: 0.4rem;
+    background: rgb(255 255 255 / 0.45);
+    padding: 0.25rem 0.4rem;
+    color: rgb(30 41 59);
+    font-size: 0.7rem;
+    outline: none;
+  }
+
+  .note-field:focus {
+    border-color: rgb(30 41 59 / 0.45);
+  }
+
+  .note-label {
+    display: block;
+    color: rgb(71 85 105);
+    font-size: 0.62rem;
+  }
+
+  .note-banner {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    border-bottom: 1px solid rgb(15 23 42 / 0.08);
+    padding: 0.35rem 0.6rem;
+    font-size: 0.68rem;
+  }
+
+  /* Panel de opciones sobre el editor, con el color de la nota. */
+  .note-panel {
+    background: color-mix(in srgb, white 55%, transparent);
+    backdrop-filter: blur(14px);
+  }
+
+  .note-tab {
+    border-radius: 0.35rem;
+    padding: 0.25rem 0.45rem;
+    color: rgb(51 65 85);
+    font-size: 0.66rem;
+  }
+
+  .note-tab.is-active {
+    background: rgb(15 23 42 / 0.1);
+    color: rgb(15 23 42);
+    font-weight: 600;
+  }
+
+  .note-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.68rem;
+    font-weight: 650;
+  }
+
+  .note-section-title svg {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+
+  .note-context-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 0.4rem;
+    background: rgb(255 255 255 / 0.35);
+    padding: 0.25rem 0.45rem;
+  }
+
+  .note-icon-button {
+    display: grid;
+    width: 1.4rem;
+    height: 1.4rem;
+    flex: none;
+    place-items: center;
+    border-radius: 0.35rem;
+    color: rgb(71 85 105);
+  }
+
+  .note-icon-button:hover {
+    background: rgb(15 23 42 / 0.08);
+  }
+
+  .note-icon-button svg {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+}

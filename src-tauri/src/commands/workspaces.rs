@@ -59,6 +59,17 @@ pub fn note_scope(alias: &str, ws: &str) -> String {
     )
 }
 
+/// Solo las notas del espacio `ws` (vinculadas o de sus proyectos), sin las globales.
+pub fn note_scope_strict(alias: &str, ws: &str) -> String {
+    format!(
+        "({ws} IS NULL
+          OR EXISTS (SELECT 1 FROM workspace_notes wn
+                     WHERE wn.note_id = {alias}.id AND wn.workspace_id = {ws})
+          OR {alias}.project_id IN
+             (SELECT project_id FROM workspace_projects WHERE workspace_id = {ws}))"
+    )
+}
+
 pub fn event_scope(alias: &str, ws: &str) -> String {
     format!(
         "({ws} IS NULL OR {alias}.project_id IS NULL OR {alias}.project_id IN
@@ -80,6 +91,25 @@ pub fn active_workspace(connection: &Connection) -> rusqlite::Result<Option<Stri
 
 pub fn active_workspace_id(database: &Database) -> Result<Option<String>, String> {
     database.with_connection(active_workspace)
+}
+
+fn include_global_notes(preferences: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(preferences)
+        .ok()
+        .and_then(|value| value.get("includeGlobalNotes")?.as_bool())
+        .unwrap_or(true)
+}
+
+/// Si al activar el espacio se muestran también las notas que no pertenecen a ninguno.
+pub fn includes_global_notes(connection: &Connection, id: &str) -> rusqlite::Result<bool> {
+    let preferences: Option<String> = connection
+        .query_row(
+            "SELECT view_preferences FROM workspaces WHERE id = ?1",
+            [id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(preferences.as_deref().is_none_or(include_global_notes))
 }
 
 fn task_view(preferences: &str) -> String {
@@ -108,6 +138,7 @@ fn load_workspace(connection: &Connection, id: &str) -> rusqlite::Result<Option<
                     color: row.get(2)?,
                     icon: row.get(3)?,
                     task_view: task_view(&row.get::<_, String>(4)?),
+                    include_global_notes: include_global_notes(&row.get::<_, String>(4)?),
                     is_archived: row.get(5)?,
                     project_ids: Vec::new(),
                     note_ids: Vec::new(),
@@ -192,7 +223,11 @@ fn validate(input: &WorkspaceInput) -> Result<(String, String), String> {
     if !TASK_VIEWS.contains(&input.task_view.as_str()) {
         return Err("Vista de tareas no válida".to_string());
     }
-    let preferences = serde_json::json!({ "taskView": input.task_view }).to_string();
+    let preferences = serde_json::json!({
+        "taskView": input.task_view,
+        "includeGlobalNotes": input.include_global_notes.unwrap_or(true),
+    })
+    .to_string();
     Ok((name.to_string(), preferences))
 }
 
@@ -569,6 +604,7 @@ mod tests {
             color: PROJECT_COLORS[1].to_string(),
             icon: "flask".to_string(),
             task_view: "all".to_string(),
+            include_global_notes: None,
         }
     }
 

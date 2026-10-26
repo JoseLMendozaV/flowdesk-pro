@@ -2,13 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
+  CalendarDays,
+  CheckSquare2,
   ExternalLink,
+  ListChecks,
+  Paperclip,
+  Pin,
   Plus,
   Search,
   StickyNote,
   Trash2,
 } from "lucide-react";
 import { useProjects } from "../features/projects/useProjects";
+import { useWorkspaces } from "../features/workspaces/useWorkspaces";
 import { useDataChanged } from "../hooks/useDataChanged";
 import { flowdeskApi } from "../services/flowdeskApi";
 import type { Note } from "../types/dashboard";
@@ -20,13 +26,40 @@ const dateFormatter = new Intl.DateTimeFormat("es-ES", {
   minute: "2-digit",
 });
 
+type ContextFilter = "all" | "tasks" | "events" | "attachments" | "checklist" | "pinned";
+
+const contextFilters: { value: ContextFilter; label: string }[] = [
+  { value: "all", label: "Todas" },
+  { value: "tasks", label: "Con tareas" },
+  { value: "events", label: "Con eventos" },
+  { value: "attachments", label: "Con adjuntos" },
+  { value: "checklist", label: "Con pendientes" },
+  { value: "pinned", label: "Fijadas" },
+];
+
+function matchesContext(note: Note, filter: ContextFilter) {
+  const { links } = note;
+  switch (filter) {
+    case "tasks": return links.taskIds.length > 0;
+    case "events": return links.eventIds.length > 0;
+    case "attachments": return links.attachmentCount > 0;
+    case "checklist": return links.checklistDone < links.checklistTotal;
+    case "pinned": return note.pinnedGlobal;
+    default: return true;
+  }
+}
+
 export function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [query, setQuery] = useState("");
   const [includeArchived, setIncludeArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [contextFilter, setContextFilter] = useState<ContextFilter>("all");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [workspaceFilter, setWorkspaceFilter] = useState("");
   const { projects } = useProjects(true);
+  const { workspaces } = useWorkspaces();
   const projectById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
 
   const load = useCallback(async () => {
@@ -48,11 +81,15 @@ export function NotesPage() {
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es");
-    if (!normalized) return notes;
-    return notes.filter((note) =>
-      `${note.title} ${note.content}`.toLocaleLowerCase("es").includes(normalized),
+    return notes.filter(
+      (note) =>
+        (!normalized || `${note.title} ${note.content}`.toLocaleLowerCase("es").includes(normalized)) &&
+        matchesContext(note, contextFilter) &&
+        (!projectFilter || (projectFilter === "none" ? !note.projectId : note.projectId === projectFilter)) &&
+        (!workspaceFilter || (workspaceFilter === "none" ? note.links.workspaceIds.length === 0 : note.links.workspaceIds.includes(workspaceFilter))),
     );
-  }, [notes, query]);
+  }, [contextFilter, notes, projectFilter, query, workspaceFilter]);
+  const filtering = Boolean(query.trim()) || contextFilter !== "all" || Boolean(projectFilter) || Boolean(workspaceFilter);
 
   async function createNote() {
     try {
@@ -97,6 +134,27 @@ export function NotesPage() {
             Mostrar archivadas
           </label>
         </div>
+        <div data-tour-id="notes-filters" className="-mt-2 mb-5 flex flex-wrap items-center gap-2">
+          <div role="radiogroup" aria-label="Filtrar por contexto" className="flex flex-wrap rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
+            {contextFilters.map((option) => (
+              <button key={option.value} type="button" role="radio" aria-checked={contextFilter === option.value} onClick={() => setContextFilter(option.value)} className={`rounded-md px-2.5 py-1 text-[11px] ${contextFilter === option.value ? "bg-[var(--surface)] font-medium shadow-sm" : "text-[var(--muted)] hover:text-[var(--text)]"}`}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)} aria-label="Filtrar por proyecto" className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 py-1.5 text-[11px]">
+            <option value="">Todos los proyectos</option>
+            <option value="none">Sin proyecto</option>
+            {projects.filter((project) => !project.archivedAt).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+          </select>
+          {workspaces.length > 0 && (
+            <select value={workspaceFilter} onChange={(event) => setWorkspaceFilter(event.target.value)} aria-label="Filtrar por espacio" className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 py-1.5 text-[11px]">
+              <option value="">Cualquier espacio</option>
+              <option value="none">Sin espacio (globales)</option>
+              {workspaces.filter((workspace) => !workspace.isArchived).map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+            </select>
+          )}
+        </div>
 
         {error && <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-xs text-red-500">{error}</div>}
         {loading ? (
@@ -105,8 +163,8 @@ export function NotesPage() {
           <div className="grid min-h-80 place-items-center rounded-2xl border border-dashed border-[var(--line)] text-center">
             <div>
               <StickyNote className="mx-auto mb-3 size-7 text-amber-500" />
-              <h2 className="text-sm font-semibold">{query ? "No hay coincidencias" : "Todavía no hay notas"}</h2>
-              {!query && <p className="mt-1 text-[11px] text-[var(--muted)]">Pulsa ⌥N para capturar una idea desde cualquier aplicación.</p>}
+              <h2 className="text-sm font-semibold">{filtering ? "No hay coincidencias" : "Todavía no hay notas"}</h2>
+              {!filtering && <p className="mt-1 text-[11px] text-[var(--muted)]">Pulsa ⌥N para capturar una idea desde cualquier aplicación.</p>}
             </div>
           </div>
         ) : (
@@ -116,7 +174,10 @@ export function NotesPage() {
                 <button type="button" onClick={() => void flowdeskApi.showNote(note.id)} className="block w-full text-left">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="line-clamp-1 text-sm font-semibold">{note.title || "Nota sin título"}</h2>
-                    <ExternalLink className="size-3.5 flex-none opacity-40" />
+                    <span className="flex flex-none items-center gap-1 opacity-50">
+                      {note.pinnedGlobal && <Pin className="size-3" aria-label="Fijada en todos los espacios" />}
+                      <ExternalLink className="size-3.5" />
+                    </span>
                   </div>
                   {note.projectId && projectById.get(note.projectId) && (
                     <span className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded-full bg-black/5 px-1.5 py-0.5 text-[9px] font-medium text-slate-600">
@@ -125,6 +186,7 @@ export function NotesPage() {
                     </span>
                   )}
                   <p className="mt-3 line-clamp-4 whitespace-pre-wrap text-[11px] leading-5 text-slate-600">{note.content || "Nota vacía"}</p>
+                  <NoteBadges note={note} />
                 </button>
                 <footer className="absolute inset-x-4 bottom-3 flex items-center justify-between">
                   <time className="text-[9px] text-slate-500">{dateFormatter.format(new Date(note.updatedAt * 1000))}</time>
@@ -141,5 +203,26 @@ export function NotesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Distintivos de lo asociado a la nota: listas, adjuntos, tareas y eventos. */
+function NoteBadges({ note }: { note: Note }) {
+  const { checklistTotal, checklistDone, attachmentCount, taskIds, eventIds } = note.links;
+  const badges = [
+    checklistTotal > 0 && { icon: ListChecks, label: `${checklistDone}/${checklistTotal}`, title: "Lista de verificación" },
+    attachmentCount > 0 && { icon: Paperclip, label: String(attachmentCount), title: "Adjuntos" },
+    taskIds.length > 0 && { icon: CheckSquare2, label: String(taskIds.length), title: "Tareas vinculadas" },
+    eventIds.length > 0 && { icon: CalendarDays, label: String(eventIds.length), title: "Eventos vinculados" },
+  ].filter(Boolean) as { icon: typeof Pin; label: string; title: string }[];
+  if (badges.length === 0) return null;
+  return (
+    <span className="mt-2 flex flex-wrap gap-1 pb-4">
+      {badges.map(({ icon: Icon, label, title }) => (
+        <span key={title} title={title} className="inline-flex items-center gap-1 rounded-full bg-black/5 px-1.5 py-0.5 text-[9px] font-medium text-slate-600">
+          <Icon className="size-2.5" /> {label}
+        </span>
+      ))}
+    </span>
   );
 }

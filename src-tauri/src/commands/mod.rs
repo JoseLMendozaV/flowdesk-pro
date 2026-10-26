@@ -4,6 +4,8 @@ pub mod clipboard;
 pub mod dashboard;
 pub mod focus;
 pub mod lifecycle;
+pub mod note_attachments;
+pub mod note_contexts;
 pub mod notes;
 pub mod onboarding;
 pub mod preferences;

@@ -30,8 +30,8 @@ export function FloatingNoteDemo({ paused }: { paused: boolean }) {
             </div>
             <div className="mt-2 space-y-1">
               <div className="demo-note-line h-1.5 w-[88%] rounded-full bg-slate-700/30" />
-              <div className="demo-note-line h-1.5 w-[70%] rounded-full bg-slate-700/30" />
-              <div className="demo-note-line h-1.5 w-[54%] rounded-full bg-slate-700/30" />
+              <div className="flex items-center gap-1"><span className="grid size-2 place-items-center rounded-[2px] bg-slate-700 text-[5px] text-white">✓</span><div className="demo-note-line h-1.5 w-[60%] rounded-full bg-slate-700/30" /></div>
+              <div className="flex items-center gap-1"><span className="size-2 rounded-[2px] border border-slate-700/60" /><div className="demo-note-line h-1.5 w-[48%] rounded-full bg-slate-700/30" /></div>
             </div>
             <div className="mt-2.5 flex gap-1">
               {swatches.map((color) => <span key={color} className="size-2.5 rounded-full border border-black/10" style={{ backgroundColor: color }} />)}

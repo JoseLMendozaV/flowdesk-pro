@@ -4,6 +4,7 @@ mod app_tracking;
 mod calendar;
 mod clipboard;
 mod focus;
+mod notes;
 mod onboarding;
 mod projects;
 mod tasks;
@@ -17,6 +18,10 @@ pub use clipboard::{ClipboardItem, ClipboardSettings, ExcludedApp};
 pub use focus::{
     ActiveEntry, ActivePomodoro, DayStat, EntryInput, FocusSession, PomodoroSettings, ProjectTime,
     StartPomodoro, TimeEntry, TimeStats, TimerSnapshot, WorkContext,
+};
+pub use notes::{
+    NoteAttachment, NoteContextItem, NoteContexts, NoteHistoryEntry, NoteVersion,
+    NoteVersionSummary,
 };
 pub use onboarding::{OnboardingPreferences, OnboardingState};
 pub use projects::{ProjectDeleteMode, ProjectInput, ProjectSummary};
@@ -103,6 +108,25 @@ pub struct Note {
     pub created_at: i64,
     pub updated_at: i64,
     pub window: NoteWindow,
+    /// `markdown` (notas anteriores a la versión 2) o `rich-v1`.
+    pub content_format: String,
+    /// Documento del editor enriquecido. Solo lo devuelve `get_note`; los listados no.
+    pub content_json: Option<String>,
+    pub revision: i64,
+    pub pinned_global: bool,
+    pub links: NoteLinks,
+}
+
+/// Contextos y contenido asociado de una nota, para filtrar y mostrar distintivos.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteLinks {
+    pub task_ids: Vec<String>,
+    pub workspace_ids: Vec<String>,
+    pub event_ids: Vec<String>,
+    pub attachment_count: i64,
+    pub checklist_total: i64,
+    pub checklist_done: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]

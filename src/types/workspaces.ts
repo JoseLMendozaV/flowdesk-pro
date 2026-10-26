@@ -15,6 +15,8 @@ export type Workspace = {
   color: string;
   icon: WorkspaceIcon;
   taskView: WorkspaceTaskView;
+  /** Al activar el espacio se muestran también las notas que no pertenecen a ninguno. */
+  includeGlobalNotes: boolean;
   isArchived: boolean;
   projectIds: string[];
   noteIds: string[];
@@ -22,7 +24,7 @@ export type Workspace = {
   openTaskCount: number;
 };
 
-export type WorkspaceInput = Pick<Workspace, "name" | "color" | "icon" | "taskView">;
+export type WorkspaceInput = Pick<Workspace, "name" | "color" | "icon" | "taskView" | "includeGlobalNotes">;
 
 export type WorkspaceState = {
   activeId: string | null;

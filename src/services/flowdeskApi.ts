@@ -42,6 +42,13 @@ import type {
   TaskStatus,
   TaskSummary,
 } from "../types/tasks";
+import type {
+  NoteAttachment,
+  NoteContextKind,
+  NoteContexts,
+  NoteVersion,
+  NoteVersionSummary,
+} from "../types/notes";
 import type { Workspace, WorkspaceInput, WorkspaceState } from "../types/workspaces";
 
 export const flowdeskApi = {
@@ -171,7 +178,18 @@ export const flowdeskApi = {
   note: (noteId: string) => invoke<Note>("get_note", { noteId }),
   notes: (includeArchived = false, allWorkspaces = false) =>
     invoke<Note[]>("list_notes", { includeArchived, allWorkspaces }),
-  updateNote: (note: Pick<Note, "id" | "title" | "content" | "color" | "reminderAt" | "projectId"> & { opacity: number; fontSize: number }) =>
+  /**
+   * Con `contentJson` guarda el documento enriquecido; Rust deriva `content`. Con
+   * `baseRevision`, falla con `NOTE_CONFLICT` si otra ventana guardó antes.
+   */
+  updateNote: (
+    note: Pick<Note, "id" | "title" | "content" | "color" | "reminderAt" | "projectId"> & {
+      opacity: number;
+      fontSize: number;
+      contentJson?: string | null;
+      baseRevision?: number | null;
+    },
+  ) =>
     invoke<Note>("update_note", {
       input: {
         noteId: note.id,
@@ -182,8 +200,34 @@ export const flowdeskApi = {
         fontSize: note.fontSize,
         reminderAt: note.reminderAt,
         projectId: note.projectId,
+        contentJson: note.contentJson ?? null,
+        baseRevision: note.baseRevision ?? null,
+        source: "note",
       },
     }),
+  noteVersions: (noteId: string) => invoke<NoteVersionSummary[]>("list_note_versions", { noteId }),
+  noteVersion: (versionId: string) => invoke<NoteVersion>("get_note_version", { versionId }),
+  restoreNoteVersion: (noteId: string, versionId: string, reason: "before-restore" | "conflict" = "before-restore") =>
+    invoke<Note>("restore_note_version", { noteId, versionId, reason }),
+  saveNoteConflictCopy: (noteId: string, title: string, contentJson: string) =>
+    invoke<void>("save_note_conflict_copy", { noteId, title, contentJson }),
+  preserveNoteVersion: (noteId: string) => invoke<void>("preserve_note_version", { noteId }),
+  setNotePinnedGlobal: (noteId: string, pinned: boolean) =>
+    invoke<Note>("set_note_pinned_global", { noteId, pinned }),
+  /** Bytes en el cuerpo de la petición: sin conversión a JSON. */
+  addNoteAttachment: (noteId: string, fileName: string, bytes: Uint8Array) =>
+    invoke<NoteAttachment>("add_note_attachment", bytes, {
+      headers: { "x-note-id": noteId, "x-file-name": encodeURIComponent(fileName) },
+    }),
+  attachNoteFiles: (noteId: string, paths: string[]) => invoke<NoteAttachment[]>("attach_note_files", { noteId, paths }),
+  noteAttachments: (noteId: string) => invoke<NoteAttachment[]>("list_note_attachments", { noteId }),
+  noteAttachmentData: (attachmentId: string) => invoke<ArrayBuffer>("get_note_attachment_data", { attachmentId }),
+  openNoteAttachment: (attachmentId: string) => invoke<void>("open_note_attachment", { attachmentId }),
+  deleteNoteAttachment: (attachmentId: string) => invoke<void>("delete_note_attachment", { attachmentId }),
+  openNoteLink: (url: string) => invoke<void>("open_note_link", { url }),
+  noteContexts: (noteId: string) => invoke<NoteContexts>("get_note_contexts", { noteId }),
+  setNoteContext: (noteId: string, kind: NoteContextKind, entityId: string, linked: boolean) =>
+    invoke<NoteContexts>("set_note_context", { noteId, kind, entityId, linked }),
   setNoteDisplayMode: (noteId: string, displayMode: Note["window"]["displayMode"]) =>
     invoke<Note>("set_note_display_mode", { noteId, displayMode }),
   setNoteCollapsed: (noteId: string, collapsed: boolean) =>

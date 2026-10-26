@@ -102,6 +102,25 @@ async function openPage(client, query, { width = 900, height = 620, scale = 1, s
       }
       await delay(150);
     },
+    /** Clic real en el centro del primer elemento que coincide con el selector CSS. */
+    async clickSelector(selector) {
+      const point = await evaluate(`(() => {
+        const element = document.querySelector(${JSON.stringify(selector)});
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + Math.min(rect.height / 2, 10) };
+      })()`);
+      if (!point) throw new Error(`No hay ningún elemento ${selector}`);
+      for (const type of ["mousePressed", "mouseReleased"]) {
+        await send("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, button: "left", clickCount: 1 });
+      }
+      await delay(120);
+    },
+    /** Texto escrito como lo haría el teclado, en el elemento con el foco. */
+    async type(text) {
+      await send("Input.insertText", { text });
+      await delay(120);
+    },
     async screenshot() {
       const { data } = await send("Page.captureScreenshot", { format: "webp", quality: 82 });
       return Buffer.from(data, "base64");

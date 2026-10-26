@@ -7,8 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{
-    AppHandle, LogicalSize, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    WindowEvent,
+    AppHandle, Emitter, LogicalSize, Manager, Runtime, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
 };
 
 const COLLAPSED_HEIGHT: f64 = 72.0;
@@ -158,6 +158,8 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, note: &Note) -> Result<(), String> {
         }
         WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
+            // La nota guarda al momento lo pendiente del autoguardado antes de ocultarse.
+            let _ = tracked_window.emit_to(tracked_window.label(), "flowdesk://note-flush", ());
             let _ = persist_geometry(&tracked_app, &tracked_id, &tracked_window);
             let _ = tracked_app
                 .state::<Database>()

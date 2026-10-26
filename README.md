@@ -4,7 +4,7 @@ Aplicación de productividad local para macOS construida con Tauri 2, Rust, Reac
 
 ## Estado actual
 
-Las Fases 1 a 6 están implementadas. Algunas integraciones de macOS conservan comprobaciones manuales pendientes:
+Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se descartó por decisión del usuario y en su lugar se desarrollaron las notas flotantes 2.0. Algunas integraciones de macOS conservan comprobaciones manuales pendientes:
 
 - ventana principal con dashboard conectado a datos reales;
 - SQLite local con migración versionada, claves foráneas, índices y modo WAL;
@@ -28,7 +28,7 @@ Las Fases 1 a 6 están implementadas. Algunas integraciones de macOS conservan c
 - espacios de trabajo que filtran tareas, proyectos, notas y agenda, y abren sus carpetas y apps;
 - historial del portapapeles opcional, con exclusiones y detección conservadora de credenciales;
 - seguimiento automático opcional del tiempo por aplicación, sin títulos de ventanas;
-- notas flotantes independientes con guardado automático, Markdown básico y restauración;
+- notas flotantes independientes con editor enriquecido (formato, listas de verificación, tablas, imágenes y adjuntos), contextos, historial de versiones, recuperación ante cierres inesperados y control de conflictos entre ventanas;
 - colores, transparencia, tamaño de texto, colapso y nivel de ventana por nota;
 - atajo global `Option + N` y conversión de texto seleccionado en tarea;
 - bienvenida, recorrido con capturas reales y demostraciones, visita guiada sobre la interfaz y novedades tras cada actualización, generados a partir de un registro de funcionalidades verificadas;
@@ -42,7 +42,6 @@ Solo la sección IA local (Fase 8) aparece desactivada de forma explícita; no h
 - Rust estable.
 - Node.js y npm.
 - Xcode Command Line Tools para la aplicación Tauri.
-- Xcode completo para crear y firmar la extensión WidgetKit de una fase posterior.
 
 Este entorno fue verificado con Rust 1.99.1, Node 26.12.1, npm 11.20.0 y macOS 26.5.2 sobre `arm64`.
 
@@ -116,7 +115,7 @@ El script sube la versión en `package.json`, `Cargo.toml`, `Cargo.lock` y `taur
 
 ## Datos locales
 
-La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, y la novena guarda las preferencias y el progreso de la bienvenida. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
+La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, la novena guarda las preferencias y el progreso de la bienvenida, y la décima añade el contenido enriquecido de las notas, sus versiones, adjuntos y contextos sin convertir las notas existentes. Los adjuntos viven en `note-attachments/` dentro del mismo directorio; SQLite solo guarda su referencia. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
 
 - `foreign_keys = ON`;
 - `journal_mode = WAL`;
@@ -141,6 +140,7 @@ No hay telemetría ni servicios remotos obligatorios.
 - [Estado de la Fase 4 y correcciones de las Fases 1–3](docs/PHASE_04.md)
 - [Estado de la Fase 5](docs/PHASE_05.md)
 - [Estado de la Fase 6](docs/PHASE_06.md)
+- [Estado de la Fase 7: notas flotantes 2.0](docs/PHASE_07.md)
 - [Bienvenida, recorrido y novedades](docs/ONBOARDING.md)
 
-Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/), [WidgetKit](https://developer.apple.com/documentation/widgetkit).
+Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/).

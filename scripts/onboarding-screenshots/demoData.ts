@@ -105,7 +105,68 @@ export const notes = [
   { id: "n3", title: "Comandos útiles", content: "cargo test -- --nocapture\nnpm run build", color: "#D9F7D6", projectId: "p-app" },
   { id: "n4", title: "Lista de lectura", content: "Deep Work — Cal Newport\nAtomic Habits — James Clear", color: "#FFD6DE", projectId: null },
   { id: "n5", title: "Acuerdos de la reunión", content: "Enviar borrador el viernes.\nRevisar figuras 4 y 5.", color: "#E8DDFF", projectId: "p-thesis" },
-].map((note, index) => ({ ...note, reminderAt: null, isArchived: false, createdAt: now - (index + 2) * DAY, updatedAt: now - (index + 1) * 5400, window: noteWindow }));
+].map((note, index) => ({
+  ...note,
+  reminderAt: null,
+  isArchived: false,
+  createdAt: now - (index + 2) * DAY,
+  updatedAt: now - (index + 1) * 5400,
+  window: noteWindow,
+  contentFormat: "markdown",
+  contentJson: null as string | null,
+  revision: 0,
+  pinnedGlobal: index === 3,
+  links: { taskIds: [] as string[], workspaceIds: [] as string[], eventIds: [] as string[], attachmentCount: 0, checklistTotal: 0, checklistDone: 0 },
+}));
+
+const text = (value: string, marks?: { type: string; attrs?: Record<string, string> }[]) => ({ type: "text", text: value, ...(marks ? { marks } : {}) });
+const paragraph = (...content: unknown[]) => ({ type: "paragraph", content });
+const task = (label: string, checked: boolean) => ({ type: "taskItem", attrs: { checked }, content: [paragraph(text(label))] });
+
+/** Nota con el editor enriquecido: formato, lista de verificación, tabla y adjuntos. */
+export const richDocument = {
+  type: "doc",
+  content: [
+    { type: "heading", attrs: { level: 2 }, content: [text("Estructura del capítulo")] },
+    paragraph(text("Partir de la "), text("motivación", [{ type: "bold" }]), text(", luego el "), text("diseño experimental", [{ type: "italic" }]), text(" y cerrar con los "), text("resultados", [{ type: "underline" }]), text(". Ver la "), text("guía de estilo", [{ type: "link", attrs: { href: "https://example.com/guia" } }]), text(".")),
+    { type: "taskList", content: [task("Revisar la bibliografía", true), task("Redactar la sección 3.2", false), task("Preparar las figuras 4 y 5", false)] },
+    { type: "noteImage", attrs: { attachmentId: "a-image", fileName: "esquema.png", mimeType: "image/png", byteSize: 48213, width: 150 } },
+    { type: "table", content: [
+      { type: "tableRow", content: [{ type: "tableHeader", content: [paragraph(text("Sección"))] }, { type: "tableHeader", content: [paragraph(text("Estado"))] }] },
+      { type: "tableRow", content: [{ type: "tableCell", content: [paragraph(text("3.1"))] }, { type: "tableCell", content: [paragraph(text("Lista"))] }] },
+    ] },
+    { type: "blockquote", content: [paragraph(text("Lo importante es la pregunta, no la herramienta."))] },
+    { type: "noteFile", attrs: { attachmentId: "a-pdf", fileName: "Rúbrica de evaluación.pdf", mimeType: "application/pdf", byteSize: 182340 } },
+  ],
+};
+Object.assign(notes[0], {
+  contentFormat: "rich-v1",
+  contentJson: JSON.stringify(richDocument),
+  content: "Estructura del capítulo\nPartir de la motivación…\n[x] Revisar la bibliografía\n[ ] Redactar la sección 3.2\n[ ] Preparar las figuras 4 y 5",
+  revision: 12,
+  links: { taskIds: ["k1"], workspaceIds: ["w1"], eventIds: ["e2"], attachmentCount: 2, checklistTotal: 3, checklistDone: 1 },
+});
+Object.assign(notes[1].links, { checklistTotal: 2, checklistDone: 2 });
+Object.assign(notes[2].links, { attachmentCount: 1 });
+
+export const noteAttachments = [
+  { id: "a-image", noteId: "n1", kind: "image", fileName: "esquema.png", mimeType: "image/png", byteSize: 48213, createdAt: now - DAY, inUse: true },
+  { id: "a-pdf", noteId: "n1", kind: "file", fileName: "Rúbrica de evaluación.pdf", mimeType: "application/pdf", byteSize: 182340, createdAt: now - DAY, inUse: true },
+  { id: "a-audio", noteId: "n1", kind: "audio", fileName: "Idea grabada.m4a", mimeType: "audio/mp4", byteSize: 920000, createdAt: now - 3600, inUse: false },
+];
+
+export const noteVersions = [
+  { id: "v3", revision: 10, format: "rich-v1", title: "Ideas para el capítulo 3", preview: "Estructura del capítulo\nPartir de la motivación…", reason: "snapshot", createdAt: now - 1800 },
+  { id: "v2", revision: 4, format: "rich-v1", title: "Ideas para el capítulo 3", preview: "Estructura\nMotivación y contexto", reason: "snapshot", createdAt: now - DAY },
+  { id: "v1", revision: 0, format: "markdown", title: "Ideas para el capítulo 3", preview: "## Estructura\n- Motivación y contexto", reason: "legacy", createdAt: now - 3 * DAY },
+];
+
+export const noteContexts = {
+  project: { id: "p-thesis", title: "Tesis doctoral", color: "#6C8CFF", at: null, status: null },
+  tasks: [{ id: "k1", title: "Revisar el borrador del capítulo 3", color: "#6C8CFF", at: now + 3600, status: "in_progress" }],
+  workspaces: [{ id: "w1", title: "Investigación", color: "#0EA5E9", at: null, status: null }],
+  events: [{ id: "e2", title: "Seminario del grupo", color: "#6C8CFF", at: now + DAY, status: null }],
+};
 
 export const events = [
   { id: "e1", title: "Tutoría con estudiantes", day: 0, start: [15, 0], end: [16, 0], project: "p-course", location: "Despacho 2.14" },

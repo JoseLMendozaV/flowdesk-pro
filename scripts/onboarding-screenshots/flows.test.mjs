@@ -55,7 +55,7 @@ test("la bienvenida avanza, retrocede, salta a un paso y se completa", async () 
     await headingIs(page, "¡Bienvenido a FlowDesk Pro!");
     const [seen] = await page.evaluate(calls("mark_features_seen"));
     assert.equal(Object.keys(seen.features).length, 10, "presenta las 10 funciones disponibles");
-    assert.ok(!("widgets" in seen.features) && !("local-ai" in seen.features));
+    assert.ok(!("local-ai" in seen.features));
 
     await page.click("Comenzar recorrido");
     await headingIs(page, "Inicio");
@@ -173,13 +173,13 @@ test("sin novedades pendientes muestra «Estás al día» y el historial real", 
   }
 });
 
-test("el catálogo no presenta widgets ni IA local", async () => {
+test("el catálogo no presenta la IA local", async () => {
   const page = await open("target=onboarding&mode=features&state=seen");
   try {
     await headingIs(page, "Funcionalidades disponibles");
     const body = await page.evaluate(text);
     assert.ok(body.includes("Notas flotantes") && body.includes("Barra de menús"));
-    assert.ok(!/Widgets|Inteligencia artificial/.test(body));
+    assert.ok(!/Inteligencia artificial/.test(body));
   } finally {
     await page.close();
   }
@@ -243,3 +243,105 @@ test("modo oscuro y ventana pequeña sin desbordamiento horizontal", async () =>
     await page.close();
   }
 });
+
+const savedDocuments = `${calls("update_note")}.map((call) => call.input.contentJson).filter(Boolean)`;
+
+test("la nota enriquecida muestra formato, lista, tabla e imágenes y archivos adjuntos", async () => {
+  const page = await open("target=note&id=n1", { width: 380, height: 640 });
+  try {
+    await page.waitFor("document.querySelector('.note-editor h2')?.textContent === 'Estructura del capítulo'");
+    assert.equal(await page.evaluate("document.querySelectorAll('.note-editor ul[data-type=taskList] li').length"), 3);
+    assert.equal(await page.evaluate("document.querySelectorAll('.note-editor table th').length"), 2);
+    assert.equal(await page.evaluate("Boolean(document.querySelector('.note-editor strong, .note-editor b'))"), true);
+    await page.waitFor("document.querySelector('.note-image-frame img')?.src.startsWith('blob:')");
+    assert.match(await page.evaluate("document.querySelector('.note-file-node')?.textContent ?? ''"), /Rúbrica de evaluación\.pdf/);
+    assert.equal(await page.evaluate("document.querySelector('.note-editor a')?.getAttribute('href')"), "https://example.com/guia");
+  } finally {
+    await page.close();
+  }
+});
+
+test("una nota antigua no se convierte al abrirla, solo al editarla", async () => {
+  const page = await open("target=note&id=n2", { width: 380, height: 480 });
+  try {
+    await page.waitFor(`${text}.includes("Nota del editor anterior")`);
+    await page.evaluate("new Promise((resolve) => setTimeout(resolve, 900))");
+    assert.equal((await page.evaluate(calls("update_note"))).length, 0, "abrir no guarda nada");
+    await page.clickSelector(".note-editor p");
+    await page.type(" Añadido");
+    await page.waitFor(`${savedDocuments}.length > 0`, 4000);
+    const [json] = await page.evaluate(savedDocuments);
+    assert.match(json, /Añadido/);
+    assert.match(json, /"type":"doc"/);
+  } finally {
+    await page.close();
+  }
+});
+
+test("la barra aplica negrita y el documento se guarda con ella", async () => {
+  const page = await open("target=note&id=n3", { width: 380, height: 480 });
+  try {
+    await page.clickSelector(".note-editor p");
+    await page.click("Negrita (⌘B)");
+    await page.type("fuerte");
+    await page.waitFor(`${savedDocuments}.some((json) => json.includes("fuerte"))`, 4000);
+    const document = JSON.parse((await page.evaluate(savedDocuments)).at(-1));
+    const nodes = JSON.stringify(document).match(/\{[^{}]*"text":"fuerte"[^{}]*\}|\{"type":"text","marks":\[\{"type":"bold"\}\],"text":"fuerte"\}/g) ?? [];
+    assert.ok(nodes.some((node) => node.includes('"bold"')), `negrita en ${JSON.stringify(document)}`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("un conflicto entre ventanas se avisa y no sobrescribe nada", async () => {
+  const page = await open("target=note&id=n1&conflict=1", { width: 380, height: 560 });
+  try {
+    await page.clickSelector(".note-editor p");
+    await page.type(" cambio");
+    await page.waitFor(`${text}.includes("Otra ventana guardó cambios en esta nota.")`, 4000);
+    assert.ok((await page.evaluate(text)).includes("Conservar la mía"));
+  } finally {
+    await page.close();
+  }
+});
+
+test("lo escrito antes de un cierre inesperado se puede recuperar", async () => {
+  const page = await open("target=note&id=n1&draft=1", { width: 380, height: 560 });
+  try {
+    await page.waitFor(`${text}.includes("Hay cambios sin guardar de la última sesión.")`);
+    await page.click("Recuperar");
+    await page.waitFor("document.querySelector('.note-editor')?.textContent.includes('Texto recuperado tras el cierre')");
+    await page.waitFor(`${savedDocuments}.some((json) => json.includes("Texto recuperado"))`, 4000);
+  } finally {
+    await page.close();
+  }
+});
+
+test("el panel de adjuntos distingue lo que usa la nota", async () => {
+  const page = await open("target=note&id=n1&panel=Adjuntos", { width: 380, height: 560 });
+  try {
+    await page.waitFor(`${text}.includes("Idea grabada.m4a")`);
+    const body = await page.evaluate(text);
+    assert.equal((body.match(/no usado en la nota/g) ?? []).length, 1);
+    assert.equal((body.match(/· en la nota/g) ?? []).length, 2);
+  } finally {
+    await page.close();
+  }
+});
+
+test("la página Notas filtra por contexto", async () => {
+  const page = await open("target=notes", { width: 1180, height: 760 });
+  const cards = "document.querySelectorAll('[data-tour-id=notes-list] article').length";
+  try {
+    await page.waitFor(`${cards} === 5`);
+    await page.click("Con adjuntos");
+    await page.waitFor(`${cards} === 2`);
+    await page.click("Fijadas");
+    await page.waitFor(`${cards} === 1`);
+    await page.click("Con pendientes");
+    await page.waitFor(`${cards} === 1`);
+  } finally {
+    await page.close();
+  }
+});
+

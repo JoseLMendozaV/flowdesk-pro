@@ -20,6 +20,8 @@ pub struct Workspace {
     pub icon: String,
     /// Vista de tareas que se abre al activar el espacio.
     pub task_view: String,
+    /// Al activar el espacio se muestran también las notas globales.
+    pub include_global_notes: bool,
     pub is_archived: bool,
     pub project_ids: Vec<String>,
     pub note_ids: Vec<String>,
@@ -34,6 +36,7 @@ pub struct WorkspaceInput {
     pub color: String,
     pub icon: String,
     pub task_view: String,
+    pub include_global_notes: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -3,7 +3,6 @@ import { listen } from "@tauri-apps/api/event";
 import { QuickTaskDialog } from "./features/tasks/QuickTaskDialog";
 import { PreferencesDialog } from "./features/tray/PreferencesDialog";
 import { TrayPanel } from "./features/tray/TrayPanel";
-import { FloatingNote } from "./features/notes/FloatingNote";
 import { OnboardingManager } from "./features/onboarding/components/OnboardingManager";
 import { useDataChanged } from "./hooks/useDataChanged";
 import { AppShell } from "./layouts/AppShell";
@@ -18,7 +17,8 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { TasksPage } from "./pages/TasksPage";
 import { useAppStore } from "./stores/appStore";
 
-// Ventana propia y ocasional: su código y sus demostraciones se cargan solo al abrirla.
+// Ventanas propias: su código (el editor de notas, la guía) se carga solo al abrirlas.
+const FloatingNote = lazy(() => import("./features/notes/FloatingNote").then((module) => ({ default: module.FloatingNote })));
 const OnboardingWindow = lazy(() =>
   import("./features/onboarding/components/OnboardingWindow").then((module) => ({ default: module.OnboardingWindow })),
 );
@@ -36,7 +36,11 @@ export default function App() {
     );
   }
   if (params.get("view") === "note" && params.get("id")) {
-    return <FloatingNote noteId={params.get("id")!} />;
+    return (
+      <Suspense fallback={<div className="h-screen bg-[#FFF2A8]" />}>
+        <FloatingNote noteId={params.get("id")!} />
+      </Suspense>
+    );
   }
   return <MainApplication />;
 }

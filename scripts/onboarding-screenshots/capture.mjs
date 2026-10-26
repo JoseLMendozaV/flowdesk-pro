@@ -15,7 +15,7 @@ const featureShots = {
   dashboard: { query: "target=dashboard", ...WINDOW },
   tasks: { query: "target=tasks", ...WINDOW },
   projects: { query: "target=projects", ...WINDOW },
-  notes: { query: "target=notes", ...WINDOW },
+  notes: { query: "target=note&id=n1", width: 380, height: 560, scale: 2 },
   pomodoro: { query: "target=focus", ...WINDOW },
   time: { query: "target=time&entry=running&timer=idle", ...WINDOW },
   calendar: { query: "target=calendar", ...WINDOW },

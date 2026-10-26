@@ -75,6 +75,22 @@ export type Note = {
   createdAt: number;
   updatedAt: number;
   window: NoteWindow;
+  /** `markdown`: nota anterior a la versión 2, aún sin convertir. */
+  contentFormat: "markdown" | "rich-v1";
+  /** Documento del editor (solo al abrir una nota; los listados no lo incluyen). */
+  contentJson: string | null;
+  revision: number;
+  pinnedGlobal: boolean;
+  links: NoteLinks;
+};
+
+export type NoteLinks = {
+  taskIds: string[];
+  workspaceIds: string[];
+  eventIds: string[];
+  attachmentCount: number;
+  checklistTotal: number;
+  checklistDone: number;
 };
 
 export type ShortcutStatus = {

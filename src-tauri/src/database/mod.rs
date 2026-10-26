@@ -15,6 +15,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (7, include_str!("../../migrations/0007_clipboard.sql")),
     (8, include_str!("../../migrations/0008_app_tracking.sql")),
     (9, include_str!("../../migrations/0009_onboarding.sql")),
+    (10, include_str!("../../migrations/0010_notes_v2.sql")),
 ];
 
 #[cfg(test)]

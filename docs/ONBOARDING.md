@@ -20,12 +20,11 @@ La disponibilidad no depende de la fase, sino del registro y de lo que Rust decl
 | --- | --- | --- | --- |
 | Inicio | 1 | 0.1.0 (mejorada en 0.2.0) | Se presenta |
 | Barra de menús | 2 | 0.1.0 (mejorada en 0.2.0) | Se presenta |
-| Notas flotantes | 3 | 0.1.0 (mejorada en 0.2.0) | Se presenta |
+| Notas flotantes | 3 y 7 | 0.1.0 (mejorada en 0.2.0 y 0.4.0) | Se presenta |
 | Tareas y Proyectos | 4 | 0.1.0 | Se presentan |
 | Pomodoro | 5 | 0.1.0 | Se presenta |
 | Seguimiento del tiempo | 5 | 0.1.0 (por aplicación en 0.2.0) | Se presenta |
-| Agenda y recordatorios, Espacios, Portapapeles | 6 | 0.2.0 | Se presentan |
-| Widgets nativos | 7 | — | **No se presenta**: `macos/FlowDeskWidgets` solo tiene carpetas vacías y el paquete no incluye la extensión |
+| Agenda y recordatorios, Espacios (mejorados en 0.4.0), Portapapeles | 6 | 0.2.0 | Se presentan |
 | IA local | 8 | — | **No se presenta**: no hay módulo; la barra lateral la muestra deshabilitada |
 
 ## Cuándo se abre
@@ -93,13 +92,13 @@ La ventana `onboarding` se crea al pedirla, con 900 × 620 acotado al área úti
 - Tiene `introducedInVersion`.
 - **Rust declara todas sus capacidades** (`requires`).
 
-Las capacidades salen de `CAPABILITIES` en `commands/onboarding.rs`. La de widgets solo aparece si el paquete contiene `Contents/PlugIns/FlowDeskWidgets.appex`. Así el registro no puede presentar una función que el binario no incluye.
+Las capacidades salen de `CAPABILITIES` en `commands/onboarding.rs`. Así el registro no puede presentar una función que el binario no incluye.
 
 `setup` cubre funciones que existen pero necesitan configuración: si falta su capacidad (por ejemplo `local-ai:model`), el paso explica qué hay que configurar.
 
-### Añadir una función terminada (ejemplo: widgets, fase 7)
+### Añadir una función terminada (ejemplo: IA local, fase 8)
 
-1. En Rust, declara la capacidad: añádela a `CAPABILITIES` o, como los widgets, detecta su presencia real.
+1. En Rust, declara la capacidad: añádela a `CAPABILITIES` o detecta su presencia real (por ejemplo, `local-ai:model` cuando hay un modelo instalado).
 2. En `features.ts`, completa la ficha:
    - `implemented: true` y `verified: true` (solo después de probarla en la app empaquetada);
    - `introducedInVersion` con la versión que la publica;
@@ -164,14 +163,14 @@ La guía no activa el seguimiento por aplicación ni el portapapeles, no inicia 
   - migración 9 sobre una base anterior sin perder datos.
 - `npm run test:onboarding`: **8 pruebas del registro**:
   - sin errores de mantenimiento;
-  - hoy se presentan exactamente 10 funciones, sin widgets ni IA;
+  - hoy se presentan exactamente 10 funciones, sin IA;
   - lo incompleto, sin verificar, deshabilitado o sin publicar no aparece;
   - la capacidad de Rust es obligatoria;
   - nuevo frente a mejorado, sin repetir anuncios;
   - huella estable;
   - historial por versión;
   - IA sin modelo pide configuración.
-- `npm run test:onboarding-ui`: **14 flujos sobre la interfaz real** en Chrome sin interfaz, con el IPC simulado:
+- `npm run test:onboarding-ui`: **21 flujos sobre la interfaz real** (los 7 de las notas 2.0, en docs/PHASE_07.md) en Chrome sin interfaz, con el IPC simulado:
   - al abrir decide bienvenida, novedades o nada, y **no abre nada con el dashboard oculto**;
   - avanzar, retroceder, saltar a un paso con los puntos, foco en el título y completar;
   - «Explorar por mi cuenta» y Esc omiten;
@@ -181,7 +180,7 @@ La guía no activa el seguimiento por aplicación ni el portapapeles, no inicia 
   - la casilla se guarda al momento sin tocar la preferencia de novedades;
   - novedades: 3 nuevas y 4 mejoradas, marcadas como vistas;
   - «Estás al día» con el historial;
-  - el catálogo no muestra widgets ni IA;
+  - el catálogo no muestra la IA local;
   - la visita guiada omite el panel derecho oculto, termina y no llama a ningún comando que cambie datos;
   - Esc devuelve la sección inicial;
   - «Reducir movimiento» detiene las animaciones;

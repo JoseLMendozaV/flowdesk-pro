@@ -21,6 +21,7 @@ export function WorkspaceDialog({ workspace, onClose, onSaved }: WorkspaceDialog
   const [color, setColor] = useState(workspace?.color ?? projectColors[1]);
   const [icon, setIcon] = useState<WorkspaceIcon>(workspace?.icon ?? "briefcase");
   const [taskView, setTaskView] = useState<WorkspaceTaskView>(workspace?.taskView ?? "today");
+  const [includeGlobalNotes, setIncludeGlobalNotes] = useState(workspace?.includeGlobalNotes ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -33,7 +34,7 @@ export function WorkspaceDialog({ workspace, onClose, onSaved }: WorkspaceDialog
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!name.trim() || saving) return;
-    const input: WorkspaceInput = { name, color, icon, taskView };
+    const input: WorkspaceInput = { name, color, icon, taskView, includeGlobalNotes };
     setSaving(true);
     setError(null);
     try {
@@ -86,6 +87,13 @@ export function WorkspaceDialog({ workspace, onClose, onSaved }: WorkspaceDialog
             <select value={taskView} onChange={(event) => setTaskView(event.target.value as WorkspaceTaskView)} className={fieldClass}>
               {workspaceTaskViews.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 text-[11px]">
+            <input type="checkbox" checked={includeGlobalNotes} onChange={(event) => setIncludeGlobalNotes(event.target.checked)} className="mt-0.5 accent-[var(--accent)]" />
+            <span>
+              Mostrar también las notas globales
+              <small className="block text-[10px] leading-4 text-[var(--muted)]">Notas abiertas que no pertenecen a ningún espacio. Las fijadas en todos los espacios se muestran siempre.</small>
+            </span>
           </label>
         </div>
 

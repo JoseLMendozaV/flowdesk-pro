@@ -13,7 +13,7 @@ import {
 } from "./registry.ts";
 import type { FeatureDefinition } from "./types.ts";
 
-// Capacidades que declara hoy `commands/onboarding.rs` (sin la extensión de widgets).
+// Capacidades que declara hoy `commands/onboarding.rs`.
 const CURRENT = [
   "dashboard", "tasks", "projects", "notes", "global-shortcuts", "pomodoro", "time-tracking",
   "app-tracking", "calendar", "reminders", "workspaces", "clipboard", "menu-bar", "updates",
@@ -49,7 +49,7 @@ test("el registro no tiene errores de mantenimiento", () => {
   assert.deepEqual(registryProblems(), []);
 });
 
-test("solo se presentan las funciones operativas de hoy, sin widgets ni IA", () => {
+test("solo se presentan las funciones operativas de hoy, sin IA", () => {
   const ids = availableFeatures(CURRENT).map((item) => item.id);
   assert.deepEqual(ids, [
     "dashboard", "tasks", "projects", "notes", "pomodoro", "time", "calendar", "workspaces", "clipboard", "menu-bar",
@@ -69,10 +69,10 @@ test("una función incompleta, sin verificar o deshabilitada no aparece", () => 
 });
 
 test("la capacidad de Rust es obligatoria aunque el registro diga que está lista", () => {
-  const widgets = FEATURES.find((item) => item.id === "widgets")!;
-  const finished = { ...widgets, implemented: true, verified: true, introducedInVersion: "0.3.0", highlights: ["x"], example: "x", animation: "tasks" as const };
+  const ai = FEATURES.find((item) => item.id === "local-ai")!;
+  const finished = { ...ai, implemented: true, verified: true, introducedInVersion: "0.4.0", highlights: ["x"], example: "x", animation: "tasks" as const };
   assert.equal(availableFeatures(CURRENT, [finished]).length, 0);
-  assert.equal(availableFeatures([...CURRENT, "widgets"], [finished]).length, 1);
+  assert.equal(availableFeatures([...CURRENT, "local-ai"], [finished]).length, 1);
 });
 
 test("las novedades distinguen funciones nuevas y mejoradas y no se repiten", () => {
@@ -98,9 +98,10 @@ test("la huella cambia con funciones nuevas o revisiones, no con el orden", () =
 
 test("el historial por versión empieza por la más reciente", () => {
   const notes = releaseNotes(availableFeatures(CURRENT));
-  assert.deepEqual(notes.map((entry) => entry.version), ["0.2.0", "0.1.0"]);
-  assert.ok(notes[0].added.some((item) => item.id === "calendar"));
-  assert.ok(notes[0].improved.some((item) => item.feature.id === "time"));
+  assert.deepEqual(notes.map((entry) => entry.version), ["0.4.0", "0.2.0", "0.1.0"]);
+  assert.deepEqual(notes[0].improved.map((item) => item.feature.id), ["notes", "workspaces"]);
+  assert.ok(notes[1].added.some((item) => item.id === "calendar"));
+  assert.ok(notes[1].improved.some((item) => item.feature.id === "time"));
 });
 
 test("los pasos de la visita llevan su función y una IA sin modelo pide configuración", () => {

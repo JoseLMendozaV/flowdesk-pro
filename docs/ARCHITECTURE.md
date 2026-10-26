@@ -13,11 +13,10 @@ Comandos Tauri
       ▼
 Servicios Rust ── SQLite local
       │
-      ├── ventanas y tray de macOS
-      └── snapshot App Group (fase de widgets)
+      └── ventanas y tray de macOS
 ```
 
-SQLite es la única fuente principal. Cuando se implemente WidgetKit, Rust exportará un snapshot mínimo al contenedor App Group; la extensión no escribirá directamente en la base principal.
+SQLite es la única fuente principal.
 
 ## Persistencia
 
@@ -63,7 +62,21 @@ Las ventanas ocultas no repintan: Rust anuncia `flowdesk://visibility` y `useDat
 
 Cada nota tiene una entidad `notes`, una configuración `note_windows` y una ventana dinámica con etiqueta `note-{uuid}`. SQLite es la única fuente de su geometría: el plugin `window-state` solo gestiona la ventana `main`. Las capabilities admiten únicamente el patrón `note-*` además de las ventanas estáticas.
 
-El contenido se guarda mediante un comando tipado después de 650 ms sin cambios. Rust valida título, contenido, color, transparencia y tamaño de texto antes de realizar una transacción. La geometría se captura de forma limitada a cuatro escrituras por segundo, al perder foco, al cerrar y al finalizar la aplicación.
+**Contenido.**
+- El editor es Tiptap/ProseMirror y el documento se guarda en `notes.content_json` (formato `rich-v1`).
+- Rust lo valida y deriva el texto plano de `notes.content` (búsquedas, vistas previas, tareas) y las listas de verificación (`note_document.rs`).
+- Las notas anteriores siguen en Markdown hasta que se editan; su original queda en `note_content_versions`.
+
+**Guardado.**
+- Mediante un comando tipado 650 ms después de dejar de escribir, al perder el foco y antes de ocultar la ventana (`flowdesk://note-flush`).
+- Cada guardado envía la revisión de partida: si otra ventana guardó antes, Rust responde `NOTE_CONFLICT` y no sobrescribe.
+- Hay instantáneas periódicas y un historial ligero de cambios. Un diario en `localStorage` permite recuperar lo escrito tras un cierre inesperado.
+
+**Adjuntos.** Los archivos van en `note-attachments/<nota>/` dentro del directorio de datos y SQLite guarda su referencia. Borrar los mueve 30 días a `.trash/`. Las imágenes se muestran como URL `blob:` a partir de sus bytes.
+
+**Contextos.** Proyecto, tareas y espacios reutilizan `notes.project_id`, `task_notes` y `workspace_notes`; los eventos usan `note_context_links`.
+
+**Geometría.** La geometría se captura de forma limitada a cuatro escrituras por segundo, al perder foco, al cerrar y al finalizar la aplicación.
 
 Los niveles disponibles son normal, siempre encima y siempre debajo. El último usa `always_on_bottom`; no modifica niveles privados de AppKit ni promete quedar anclado debajo de los iconos del Finder.
 
