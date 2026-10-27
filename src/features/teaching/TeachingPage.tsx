@@ -23,6 +23,7 @@ import { ReportsView } from "./components/ReportsView";
 import { ScheduleView } from "./components/ScheduleView";
 import { SettingsView } from "./components/SettingsView";
 import { StudentsView } from "./components/StudentsView";
+import { SyllabusView } from "./components/SyllabusView";
 import { api } from "./lib/api";
 import { AppActionsContext, type AppActions } from "./lib/app-context";
 import { formatTimestamp } from "./lib/dates";
@@ -36,6 +37,7 @@ const tabs: { id: TeachingTab; label: string }[] = [
   { id: "students", label: "Estudiantes" },
   { id: "groups", label: "Equipos" },
   { id: "attendance", label: "Asistencia" },
+  { id: "syllabus", label: "Plan" },
   { id: "evaluations", label: "Evaluaciones" },
   { id: "grades", label: "Calificaciones" },
   { id: "planning", label: "Planificación" },
@@ -296,6 +298,7 @@ export default function TeachingPage() {
                   {page === "students" && <StudentsView courseId={courseId} />}
                   {page === "groups" && <GroupsView courseId={courseId} />}
                   {page === "attendance" && <AttendanceView courseId={courseId} />}
+                  {page === "syllabus" && <SyllabusView courseId={courseId} />}
                   {page === "evaluations" && <EvaluationsView courseId={courseId} />}
                   {page === "grades" && <GradebookView courseId={courseId} />}
                   {page === "planning" && <PlanningView courseId={courseId} />}

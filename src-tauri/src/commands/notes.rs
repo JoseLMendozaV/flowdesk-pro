@@ -178,6 +178,76 @@ pub fn create_note_and_window(app: &AppHandle) -> Result<Note, String> {
     Ok(note)
 }
 
+/// Crea, dentro de la transacción de quien llama, una nota flotante visible con un documento
+/// ya escrito (por ejemplo, la preparación de una clase en Docencia). Devuelve su id; la
+/// ventana la abre después `present_note`, con la base ya liberada.
+pub fn insert_prepared_note(
+    connection: &Connection,
+    title: &str,
+    document: &str,
+    project_id: Option<&str>,
+) -> Result<String, String> {
+    let digest = note_document::digest(document)?;
+    let id = Uuid::new_v4().to_string();
+    let now = Utc::now().timestamp();
+    let title: String = title.trim().chars().take(120).collect();
+    let insert = || -> rusqlite::Result<()> {
+        connection.execute(
+            "INSERT INTO notes(id, title, content, content_format, content_json, project_id,
+                created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+            params![
+                id,
+                title,
+                digest.text,
+                RICH_FORMAT,
+                document,
+                project_id,
+                now
+            ],
+        )?;
+        connection.execute(
+            "INSERT INTO note_windows(note_id, display_mode, is_visible, updated_at)
+             VALUES (?1, 'always_on_top', 1, ?2)",
+            params![id, now],
+        )?;
+        connection.execute(
+            "INSERT INTO workspace_notes(workspace_id, note_id)
+             SELECT ?1, ?2 WHERE ?1 IS NOT NULL",
+            params![active_workspace(connection)?, id],
+        )?;
+        store_checklist(connection, &id, &digest.checklist)
+    };
+    insert().map_err(|error| error.to_string())?;
+    Ok(id)
+}
+
+/// Muestra la ventana flotante de una nota (la desarchiva si hace falta) y le da el foco.
+pub fn present_note(app: &AppHandle, note_id: &str) -> Result<Note, String> {
+    let database = app.state::<Database>();
+    database.with_connection(|connection| {
+        connection.execute(
+            "UPDATE notes SET is_archived = 0, archived_at = NULL WHERE id = ?1 AND is_archived = 1",
+            [note_id],
+        )?;
+        connection.execute(
+            "UPDATE note_windows SET is_visible = 1, updated_at = unixepoch() WHERE note_id = ?1",
+            [note_id],
+        )?;
+        Ok(())
+    })?;
+    let note = require_note(&database, note_id)?;
+    if let Err(error) = note_windows::open(app, &note) {
+        mark_hidden(&database, note_id);
+        return Err(error);
+    }
+    if let Some(window) = app.get_webview_window(&note_windows::label(note_id)) {
+        let _ = window.set_focus();
+    }
+    let _ = app.emit("flowdesk://data-changed", "notes");
+    Ok(note)
+}
+
 /// Notas que el usuario dejó abiertas y que corresponden al espacio activo: las suyas,
 /// las fijadas en todos los espacios y, si el espacio lo permite, las globales.
 fn displayable_notes(connection: &Connection) -> rusqlite::Result<Vec<Note>> {

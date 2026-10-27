@@ -6,10 +6,10 @@
 //! se cambia desde Docencia y desaparece con su origen (disparadores de la migración 13).
 //! Todo se escribe con la conexión que ya tiene el comando, dentro de su transacción.
 
-use super::error::AppResult;
+use super::{academic::DaysOff, error::AppResult};
 use crate::{
     commands::{projects::PROJECT_COLORS, workspaces::active_workspace},
-    recurrence::{Frequency, RecurrenceRule},
+    recurrence::{Frequency, RecurrenceRule, parse_exceptions},
 };
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -543,17 +543,18 @@ pub fn sync_schedule_slot(connection: &Connection, slot_id: i64) -> AppResult<()
         }
         _ => None,
     };
-    let Some((first, until, start, end)) = usable else {
+    let Some((first, last_day, start, end)) = usable else {
         remove_event(connection, event_id)?;
         connection.execute(
-            "UPDATE course_schedule SET calendar_event_id = NULL WHERE id = ?1",
+            "UPDATE course_schedule SET calendar_event_id = NULL, skipped_occurrences = '[]'
+             WHERE id = ?1",
             [slot_id],
         )?;
         return Ok(());
     };
     let starts_at = local_timestamp(first.and_time(start)).unwrap_or_default();
     let ends_at = local_timestamp(first.and_time(end)).unwrap_or(starts_at + 3600);
-    let until = local_timestamp(until.and_hms_opt(23, 59, 59).unwrap_or_default());
+    let until = local_timestamp(last_day.and_hms_opt(23, 59, 59).unwrap_or_default());
     let rule = RecurrenceRule {
         frequency: Frequency::Weekly,
         interval: 1,
@@ -584,6 +585,131 @@ pub fn sync_schedule_slot(connection: &Connection, slot_id: i64) -> AppResult<()
     connection.execute(
         "UPDATE course_schedule SET calendar_event_id = ?1 WHERE id = ?2",
         params![id, slot_id],
+    )?;
+    let days_off = DaysOff::load(connection)?;
+    let mut skipped = Vec::new();
+    let mut day = first;
+    while day <= last_day {
+        if days_off.contains(day)
+            && let Some(at) = local_timestamp(day.and_time(start))
+        {
+            skipped.push(at);
+        }
+        day += chrono::TimeDelta::days(7);
+    }
+    skip_occurrences(connection, slot_id, &id, &skipped)?;
+    Ok(())
+}
+
+/// Quita de la serie las clases de los días sin clases. Las que el calendario académico
+/// quitó antes se guardan aparte (`skipped_occurrences`) para devolverlas si el día deja de
+/// ser libre sin tocar las que el usuario quitó a mano desde el calendario.
+fn skip_occurrences(
+    connection: &Connection,
+    slot_id: i64,
+    event_id: &str,
+    wanted: &[i64],
+) -> rusqlite::Result<()> {
+    let (stored, previous): (String, String) = connection.query_row(
+        "SELECT e.recurrence_exceptions, s.skipped_occurrences
+         FROM calendar_events e, course_schedule s WHERE e.id = ?1 AND s.id = ?2",
+        params![event_id, slot_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    let previous = parse_exceptions(&previous);
+    let mut exceptions: Vec<i64> = parse_exceptions(&stored)
+        .into_iter()
+        .filter(|at| !previous.contains(at))
+        .collect();
+    let added: Vec<i64> = wanted
+        .iter()
+        .copied()
+        .filter(|at| !exceptions.contains(at))
+        .collect();
+    exceptions.extend(&added);
+    exceptions.sort_unstable();
+    let json = |values: &[i64]| serde_json::to_string(values).unwrap_or_else(|_| "[]".into());
+    connection.execute(
+        "UPDATE calendar_events SET recurrence_exceptions = ?1 WHERE id = ?2",
+        params![json(&exceptions), event_id],
+    )?;
+    connection.execute(
+        "UPDATE course_schedule SET skipped_occurrences = ?1 WHERE id = ?2",
+        params![json(&added), slot_id],
+    )?;
+    Ok(())
+}
+
+fn academic_kind_label(kind: &str) -> &'static str {
+    match kind {
+        "holiday" => "Feriado",
+        "break" => "Día libre",
+        "exams" => "Exámenes",
+        "deadline" => "Fecha límite",
+        _ => "Calendario académico",
+    }
+}
+
+/// Los días del calendario académico (salvo los periodos de clases) aparecen en el
+/// calendario como eventos de todo el día.
+pub fn sync_academic_day(connection: &Connection, day_id: i64) -> AppResult<()> {
+    let Some((title, kind, starts_on, ends_on, cancels, event_id)) = connection
+        .query_row(
+            "SELECT title, kind, starts_on, ends_on, cancels_classes, calendar_event_id
+             FROM academic_calendar WHERE id = ?1",
+            [day_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, bool>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                ))
+            },
+        )
+        .optional()?
+    else {
+        return Ok(());
+    };
+    let range = NaiveDate::parse_from_str(&starts_on, "%Y-%m-%d")
+        .ok()
+        .zip(NaiveDate::parse_from_str(&ends_on, "%Y-%m-%d").ok())
+        .and_then(|(from, until)| {
+            Some((
+                local_timestamp(from.and_time(NaiveTime::MIN))?,
+                local_timestamp(until.succ_opt()?.and_time(NaiveTime::MIN))?,
+            ))
+        });
+    let Some((starts_at, ends_at)) = range.filter(|_| kind != "term") else {
+        remove_event(connection, event_id)?;
+        connection.execute(
+            "UPDATE academic_calendar SET calendar_event_id = NULL WHERE id = ?1",
+            [day_id],
+        )?;
+        return Ok(());
+    };
+    let mirror = Mirror {
+        external: format!("academic-day:{day_id}"),
+        title,
+        description: if cancels {
+            format!("{} · Sin clases", academic_kind_label(&kind))
+        } else {
+            academic_kind_label(&kind).to_string()
+        },
+        starts_at,
+        ends_at,
+        is_all_day: true,
+        location: None,
+        reminder_minutes: None,
+        project_id: None,
+        recurrence: None,
+    };
+    let id = upsert_event(connection, event_id, &mirror)?;
+    connection.execute(
+        "UPDATE academic_calendar SET calendar_event_id = ?1 WHERE id = ?2",
+        params![id, day_id],
     )?;
     Ok(())
 }

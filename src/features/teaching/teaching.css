@@ -2282,7 +2282,7 @@
 
 /* Resumen: panel con paneles elegibles, cifras clave y gráficos. */
 @layer components {
-.teaching .overview {
+.teaching {
   --status-good: #0ca30c;
   --status-critical: #d03b3b;
 }
@@ -2688,6 +2688,301 @@
 @media (max-width: 1100px) {
   .teaching .overview-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Plan del curso (pestaña Plan y panel del Resumen). */
+.teaching .plan-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 19px 18px;
+}
+.teaching .plan-widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.teaching .plan-widget-head strong {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.teaching .plan-widget-head small,
+.teaching .plan-widget-current small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.teaching .plan-widget-current {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+.teaching .plan-widget-current span {
+  font-size: 12px;
+  font-weight: 650;
+}
+.teaching .plan-widget .status-pill {
+  align-self: flex-start;
+}
+.teaching .plan-widget-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.teaching .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+}
+.teaching .link-button:hover {
+  text-decoration: underline;
+}
+.teaching .empty-compact .secondary-button {
+  margin-top: 10px;
+}
+.teaching .syllabus-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  padding: 18px 19px;
+}
+.teaching .syllabus-progress-main,
+.teaching .syllabus-progress-current {
+  display: flex;
+  min-width: 220px;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+.teaching .syllabus-progress-main strong {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.teaching .syllabus-progress-current strong {
+  font-size: 13px;
+}
+.teaching .syllabus-progress small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.teaching .syllabus-progress-current .secondary-button {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.teaching .topic-list {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+.teaching .topic-row {
+  display: grid;
+  grid-template-columns: 28px 22px minmax(0, 1fr) minmax(120px, auto) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-left: 3px solid transparent;
+}
+.teaching .topic-row + .topic-row {
+  border-top: 1px solid var(--border);
+}
+.teaching .topic-row.current {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.teaching .topic-row.done .topic-main strong {
+  color: var(--muted);
+}
+.teaching .topic-check {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+}
+.teaching .topic-check:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+.teaching .topic-row.done .topic-check {
+  color: var(--status-good);
+}
+.teaching .topic-number {
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.teaching .topic-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.teaching .topic-main strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+.teaching .topic-main small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teaching .topic-when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-size: 10px;
+  text-align: right;
+}
+.teaching .topic-when b {
+  font-weight: 650;
+}
+.teaching .topic-when small {
+  color: var(--muted);
+}
+.teaching .topic-state {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+}
+.teaching .row-actions button.has-note {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--accent);
+}
+.teaching .distribute-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.teaching .distribute-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--surface-solid);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.teaching .distribute-option:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.teaching .distribute-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.teaching .distribute-option strong {
+  font-size: 12px;
+}
+.teaching .distribute-option small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* Calendario académico (pestaña Horario). */
+.teaching .academic-panel .schedule-hint {
+  margin: 12px 19px 0;
+}
+.teaching .academic-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 6px 22px;
+  padding: 12px 19px 18px;
+}
+.teaching .academic-month h4 {
+  margin: 8px 0 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.teaching .academic-month ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.teaching .academic-day {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 6px 10px;
+  border-left: 3px solid var(--border-strong);
+}
+.teaching .academic-day + .academic-day {
+  margin-top: 4px;
+}
+.teaching .academic-day.kind-holiday,
+.teaching .academic-day.kind-break {
+  border-left-color: var(--status-critical);
+}
+.teaching .academic-day.kind-exams {
+  border-left-color: var(--accent);
+}
+.teaching .academic-day.past {
+  opacity: 0.55;
+}
+.teaching .academic-date {
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.teaching .academic-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.teaching .academic-main strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teaching .academic-main small {
+  color: var(--muted);
+  font-size: 9.5px;
+}
+.teaching .academic-cancels {
+  align-self: end;
+  padding-bottom: 8px;
+}
+@media (max-width: 900px) {
+  .teaching .topic-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+  .teaching .topic-number,
+  .teaching .topic-state {
+    display: none;
+  }
+  .teaching .topic-when {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .teaching .topic-row .row-actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 }
 }

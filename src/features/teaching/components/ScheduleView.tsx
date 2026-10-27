@@ -1,12 +1,14 @@
 import { FormEvent, useMemo, useState } from "react";
 import { AlertTriangle, CalendarCheck2, CalendarClock, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 import { AnimatePresence } from "../lib/motion";
+import { currentTerm, sessionsMessage } from "../lib/academic";
 import { api } from "../lib/api";
 import { useAppActions } from "../lib/app-context";
 import { formatTime } from "../lib/dates";
 import { alignsWithBlocks, coversBlock, expandBlocks, kindLabels, kindLetters, shortCourseName, type Block } from "../lib/timeBlocks";
 import { useResource } from "../lib/useResource";
-import type { CourseSummary, ScheduleKind, ScheduleSlot } from "../types";
+import type { AcademicDay, CourseSummary, ScheduleKind, ScheduleSlot } from "../types";
+import { AcademicCalendarPanel } from "./AcademicCalendarPanel";
 import { LoadingPill } from "./LoadingPill";
 import { Modal } from "./Modal";
 
@@ -91,6 +93,7 @@ export function ScheduleView({ courseId, courses }: Props) {
   const { data, loading, reload } = useResource(() => api.schedule(), []);
   const { data: periods } = useResource(() => api.periods(), []);
   const { data: timeBlocks } = useResource(() => api.timeBlocks(), []);
+  const { data: academicDays, reload: reloadAcademic } = useResource(() => api.academicCalendar(), []);
   const [editing, setEditing] = useState<ScheduleSlot | "new" | null>(null);
   const [view, setView] = useState<ViewMode>(storedView);
   const slots = useMemo(() => data ?? [], [data]);
@@ -114,11 +117,7 @@ export function ScheduleView({ courseId, courses }: Props) {
   async function generate() {
     await run(async () => {
       const result = await api.generateSessions(courseId);
-      notify(
-        result.created || result.updated
-          ? `Asistencia: ${result.created} sesiones nuevas y ${result.updated} con su hora.`
-          : "Todas las clases del horario ya tienen su sesión de asistencia.",
-      );
+      notify(sessionsMessage(result));
     });
   }
 
@@ -244,6 +243,8 @@ export function ScheduleView({ courseId, courses }: Props) {
         </section>
       )}
 
+      <AcademicCalendarPanel days={academicDays} onChanged={reloadAcademic} />
+
       <AnimatePresence>
         {editing && timeBlocks && (
           <SlotModal
@@ -253,6 +254,7 @@ export function ScheduleView({ courseId, courses }: Props) {
             slots={slots}
             blocks={blocks}
             periods={periods ?? []}
+            term={academicDays ? currentTerm(academicDays) : null}
             onClose={() => setEditing(null)}
             onSaved={async () => {
               await reload();
@@ -384,11 +386,13 @@ type SlotModalProps = {
   slots: ScheduleSlot[];
   blocks: Block[];
   periods: { id: number; startDate: string; endDate: string; isActive: boolean }[];
+  /** Periodo de clases del calendario académico en curso o siguiente. */
+  term: AcademicDay | null;
   onClose: () => void;
   onSaved: () => Promise<void>;
 };
 
-function SlotModal({ slot, courseId, courses, slots, blocks, periods, onClose, onSaved }: SlotModalProps) {
+function SlotModal({ slot, courseId, courses, slots, blocks, periods, term, onClose, onSaved }: SlotModalProps) {
   const { run } = useAppActions();
   // Valores por defecto: los de otra clase de la materia, las fechas del periodo activo o cuatro meses.
   const sibling = slots.find((item) => item.courseId === courseId);
@@ -396,8 +400,8 @@ function SlotModal({ slot, courseId, courses, slots, blocks, periods, onClose, o
   const today = new Date();
   const later = new Date(today);
   later.setMonth(later.getMonth() + 4);
-  const startsOn = slot?.startsOn ?? sibling?.startsOn ?? activePeriod?.startDate ?? isoDate(today);
-  const endsOn = slot?.endsOn ?? sibling?.endsOn ?? activePeriod?.endDate ?? isoDate(later);
+  const startsOn = slot?.startsOn ?? sibling?.startsOn ?? activePeriod?.startDate ?? term?.startsOn ?? isoDate(today);
+  const endsOn = slot?.endsOn ?? sibling?.endsOn ?? activePeriod?.endDate ?? term?.endsOn ?? isoDate(later);
   const initialStart = (slot ?? sibling)?.startTime.slice(0, 5) ?? blocks[0]?.start ?? "08:00";
   const initialEnd = (slot ?? sibling)?.endTime.slice(0, 5) ?? blocks[0]?.end ?? "08:45";
   const [startTime, setStartTime] = useState(initialStart);

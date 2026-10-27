@@ -8,6 +8,7 @@ import { useResource } from "../lib/useResource";
 import type { AttendanceMatrix, AttendanceUpdate, SessionColumn } from "../types";
 import { LoadingPill } from "./LoadingPill";
 import { Modal } from "./Modal";
+import { sessionsMessage } from "../lib/academic";
 
 type Status = AttendanceUpdate["status"];
 
@@ -54,11 +55,7 @@ export function AttendanceView({ courseId }: { courseId: number }) {
     await run(async () => {
       const result = await api.generateSessions(courseId);
       await reload();
-      notify(
-        result.created || result.updated
-          ? `Sesiones desde el horario: ${result.created} nuevas y ${result.updated} con su hora.`
-          : "Todas las clases del horario ya tienen su sesión.",
-      );
+      notify(sessionsMessage(result));
     });
   }
 

@@ -22,6 +22,7 @@ pub const WIDGETS: &[&str] = &[
     "kpis",
     "attention",
     "agenda",
+    "plan",
     "attendance-trend",
     "grade-distribution",
     "evaluations",
@@ -394,6 +395,13 @@ pub fn build_overview(
         groups: groups(connection, course_id)?,
         agenda: agenda(connection, course_id, now)?,
         next_classes: next_classes(connection, course_id, now)?,
+        syllabus: super::syllabus::course_progress(
+            connection,
+            course_id,
+            chrono::DateTime::from_timestamp(now, 0)
+                .map(|moment| moment.with_timezone(&Local).date_naive())
+                .unwrap_or_else(|| Local::now().date_naive()),
+        )?,
         students,
         rules,
     })

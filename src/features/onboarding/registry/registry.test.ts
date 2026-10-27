@@ -17,7 +17,7 @@ import type { FeatureDefinition } from "./types.ts";
 const CURRENT = [
   "dashboard", "tasks", "projects", "notes", "global-shortcuts", "pomodoro", "time-tracking",
   "app-tracking", "calendar", "reminders", "workspaces", "clipboard", "menu-bar", "updates",
-  "recurrence", "trash", "command-palette", "teaching",
+  "recurrence", "trash", "command-palette", "teaching", "backups",
 ];
 
 function feature(overrides: Partial<FeatureDefinition>): FeatureDefinition {
@@ -54,7 +54,7 @@ test("solo se presentan las funciones operativas de hoy, sin IA", () => {
   const ids = availableFeatures(CURRENT).map((item) => item.id);
   assert.deepEqual(ids, [
     "dashboard", "command-palette", "tasks", "projects", "notes", "pomodoro", "time", "calendar", "teaching", "workspaces",
-    "clipboard", "trash", "menu-bar",
+    "clipboard", "trash", "backups", "menu-bar",
   ]);
 });
 
@@ -100,17 +100,19 @@ test("la huella cambia con funciones nuevas o revisiones, no con el orden", () =
 
 test("el historial por versión empieza por la más reciente", () => {
   const notes = releaseNotes(availableFeatures(CURRENT));
-  assert.deepEqual(notes.map((entry) => entry.version), ["0.8.2", "0.8.1", "0.8.0", "0.7.0", "0.6.0", "0.5.0", "0.4.0", "0.2.0", "0.1.0"]);
+  assert.deepEqual(notes.map((entry) => entry.version), ["0.9.0", "0.8.2", "0.8.1", "0.8.0", "0.7.0", "0.6.0", "0.5.0", "0.4.0", "0.2.0", "0.1.0"]);
+  assert.deepEqual(notes[0].added.map((item) => item.id), ["backups"]);
   assert.deepEqual(notes[0].improved.map((item) => item.feature.id), ["teaching"]);
   assert.deepEqual(notes[1].improved.map((item) => item.feature.id), ["teaching"]);
-  assert.deepEqual(notes[2].added.map((item) => item.id), ["teaching"]);
-  assert.deepEqual(notes[3].improved.map((item) => item.feature.id), ["tasks", "calendar", "menu-bar"]);
-  assert.deepEqual(notes[4].added.map((item) => item.id), ["command-palette", "trash"]);
-  assert.deepEqual(notes[4].improved.map((item) => item.feature.id), ["tasks", "calendar"]);
-  assert.deepEqual(notes[5].improved.map((item) => item.feature.id), ["calendar"]);
-  assert.deepEqual(notes[6].improved.map((item) => item.feature.id), ["notes", "workspaces"]);
-  assert.ok(notes[7].added.some((item) => item.id === "calendar"));
-  assert.ok(notes[7].improved.some((item) => item.feature.id === "time"));
+  assert.deepEqual(notes[2].improved.map((item) => item.feature.id), ["teaching"]);
+  assert.deepEqual(notes[3].added.map((item) => item.id), ["teaching"]);
+  assert.deepEqual(notes[4].improved.map((item) => item.feature.id), ["tasks", "calendar", "menu-bar"]);
+  assert.deepEqual(notes[5].added.map((item) => item.id), ["command-palette", "trash"]);
+  assert.deepEqual(notes[5].improved.map((item) => item.feature.id), ["tasks", "calendar"]);
+  assert.deepEqual(notes[6].improved.map((item) => item.feature.id), ["calendar"]);
+  assert.deepEqual(notes[7].improved.map((item) => item.feature.id), ["notes", "workspaces"]);
+  assert.ok(notes[8].added.some((item) => item.id === "calendar"));
+  assert.ok(notes[8].improved.some((item) => item.feature.id === "time"));
 });
 
 test("los pasos de la visita llevan su función y una IA sin modelo pide configuración", () => {

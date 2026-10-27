@@ -28,7 +28,8 @@ Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se de
 - inicio opcional con macOS mediante LaunchAgent y modo de inicio oculto;
 - calendario con vistas de día, semana y mes, eventos y tareas colocadas a su hora con su duración estimada (las que no tienen hora, a una hora por defecto configurable), que se mueven arrastrándolos y se alargan estirándolos;
 - recordatorios de tareas, eventos y notas, resumen diario y horas de silencio, sin duplicados y resistentes al reposo;
-- **Docencia** (antes la app Control Docente): materias con su horario semanal en el calendario, estudiantes, equipos, asistencia, evaluaciones con rúbricas, libro de notas, planificación, analítica e informes en Excel, con importación desde Control Docente o su versión Django;
+- **Docencia** (antes la app Control Docente): materias con su horario semanal en el calendario, calendario académico (feriados de Panamá y calendario de la UTP) que quita esas clases del horario y la asistencia, plan del curso con su avance y una nota flotante para preparar cada clase, estudiantes, equipos, asistencia, evaluaciones con rúbricas, libro de notas, planificación, analítica e informes en Excel, con importación desde Control Docente o su versión Django;
+- copias de seguridad diarias de toda la base en la carpeta que elija el usuario (por ejemplo, en iCloud Drive), conservando las últimas 30, y restauración con un clic;
 - espacios de trabajo que filtran tareas, proyectos, notas y agenda, y abren sus carpetas y apps;
 - historial del portapapeles opcional, con exclusiones y detección conservadora de credenciales;
 - seguimiento automático opcional del tiempo por aplicación, sin títulos de ventanas;
@@ -121,12 +122,14 @@ El script sube la versión en `package.json`, `Cargo.toml`, `Cargo.lock` y `taur
 
 ## Datos locales
 
-La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, la novena guarda las preferencias y el progreso de la bienvenida, la décima añade el contenido enriquecido de las notas, sus versiones, adjuntos y contextos sin convertir las notas existentes, la undécima añade las reglas de repetición de tareas y eventos y la papelera, la duodécima la fecha de inicio de las tareas y la antelación del próximo evento en la barra de menús, y la decimotercera las tablas de Docencia y su horario. Los adjuntos viven en `note-attachments/` dentro del mismo directorio; SQLite solo guarda su referencia. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
+La base `flowdesk.sqlite3` se crea dentro del directorio de datos de la aplicación asignado por macOS. SQLite es la fuente principal de datos. La primera migración crea las 22 entidades requeridas; la tercera añade `task_notes` y limpia filas huérfanas; de la quinta a la octava añaden calendario, recordatorios, recursos de espacios, portapapeles y seguimiento automático, la novena guarda las preferencias y el progreso de la bienvenida, la décima añade el contenido enriquecido de las notas, sus versiones, adjuntos y contextos sin convertir las notas existentes, la undécima añade las reglas de repetición de tareas y eventos y la papelera, la duodécima la fecha de inicio de las tareas y la antelación del próximo evento en la barra de menús, la decimotercera las tablas de Docencia y su horario, y la decimocuarta el calendario académico y el plan del curso. Los adjuntos viven en `note-attachments/` dentro del mismo directorio; SQLite solo guarda su referencia. El portapapeles y el seguimiento automático están desactivados hasta que el usuario los autoriza. La conexión activa:
 
 - `foreign_keys = ON`;
 - `journal_mode = WAL`;
 - `synchronous = NORMAL`;
 - `busy_timeout = 5000`.
+
+Las copias de seguridad (`backup.rs`) son archivos `FlowDesk-AAAA-MM-DD-HHMMSS.sqlite3` hechos con `VACUUM INTO` que llevan dentro los adjuntos de las notas. Su configuración está en `backups.json`, en el mismo directorio de datos. Una restauración pendiente (`restore-pending.sqlite3`) sustituye a la base al arrancar, antes de abrirla.
 
 No hay telemetría ni servicios remotos obligatorios.
 
@@ -150,6 +153,7 @@ No hay telemetría ni servicios remotos obligatorios.
 - [Repeticiones, papelera y paleta de comandos (0.6.0)](docs/MEJORAS_0.6.md)
 - [Arrastrar en el calendario, fecha de inicio y próximo evento (0.7.0)](docs/MEJORAS_0.7.md)
 - [Docencia: Control Docente integrado (0.8.0)](docs/DOCENCIA.md)
+- [Copias de seguridad, plan del curso y calendario académico (0.9.0)](docs/MEJORAS_0.9.md)
 - [Bienvenida, recorrido y novedades](docs/ONBOARDING.md)
 
 Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/).

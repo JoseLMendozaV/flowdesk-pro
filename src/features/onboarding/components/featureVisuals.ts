@@ -8,6 +8,7 @@ import {
   Focus,
   FolderKanban,
   GraduationCap,
+  HardDriveDownload,
   Home,
   PanelTop,
   Search,
@@ -31,6 +32,7 @@ export const featureIcons: Record<FeatureIconName, LucideIcon> = {
   search: Search,
   trash: Trash2,
   teaching: GraduationCap,
+  backups: HardDriveDownload,
   ai: Bot,
 };
 

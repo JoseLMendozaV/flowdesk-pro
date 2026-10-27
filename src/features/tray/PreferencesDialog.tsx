@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { Bell, CalendarClock, Download, Keyboard, LoaderCircle, Power, X } from "lucide-react";
+import { BackupsSection } from "../backups/BackupsSection";
 import { minutesLabel } from "../calendar/calendarDates";
 import { OnboardingSettings } from "../onboarding/components/OnboardingSettings";
 import { useUpdateStore } from "../updates/updateStore";
@@ -262,6 +263,8 @@ export function PreferencesDialog() {
             </label>
 
             <RemindersSection />
+
+            <BackupsSection />
 
             <UpdatesSection />
 

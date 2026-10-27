@@ -1,4 +1,5 @@
 mod background;
+mod backup;
 mod commands;
 mod database;
 mod menu;
@@ -70,6 +71,7 @@ pub fn run() {
             app.manage(database);
             app.manage(timers);
             app.manage(ReminderService::default());
+            app.manage(backup::BackupService::default());
             app.manage(background::app_tracking::AppTrackingService::default());
             app.manage(background::clipboard::ClipboardService::new(
                 app.path().app_data_dir()?.join("clipboard"),
@@ -82,6 +84,7 @@ pub fn run() {
             background::spawn_reminders(app.handle().clone());
             background::spawn_clipboard(app.handle().clone());
             background::spawn_app_tracking(app.handle().clone());
+            backup::spawn_scheduler(app.handle().clone());
             let database = app.state::<Database>();
             if let Ok(root) = commands::note_attachments::root(app.handle()) {
                 let _ = commands::note_attachments::purge_trash(
@@ -289,6 +292,23 @@ pub fn run() {
             teaching::schedule::teaching_save_schedule_slot,
             teaching::schedule::teaching_delete_schedule_slot,
             teaching::schedule::teaching_generate_sessions,
+            teaching::academic::teaching_get_academic_calendar,
+            teaching::academic::teaching_save_academic_day,
+            teaching::academic::teaching_delete_academic_day,
+            teaching::academic::teaching_load_official_calendar,
+            teaching::syllabus::teaching_get_syllabus,
+            teaching::syllabus::teaching_save_topic,
+            teaching::syllabus::teaching_delete_topic,
+            teaching::syllabus::teaching_set_topic_done,
+            teaching::syllabus::teaching_add_topics,
+            teaching::syllabus::teaching_reorder_topics,
+            teaching::syllabus::teaching_distribute_topics,
+            teaching::syllabus::teaching_prepare_topic,
+            backup::get_backups,
+            backup::update_backup_settings,
+            backup::backup_now,
+            backup::restore_backup,
+            backup::reveal_backup_folder,
         ]);
 
     let app = builder

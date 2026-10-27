@@ -2,6 +2,7 @@
 // de demostración. No abre SQLite ni toca los datos del usuario.
 //
 // Parámetros: ?target=<sección>|tray|onboarding|note  &mode=<modo de la guía>  &feature=<id>
+//             &settings=1 (abre Configuración)  &scroll=<data-tour-id> (lo lleva a la vista)
 //             &timer=idle|running  &entry=running  &state=first-run|news|seen  &panel=0
 //             &hidden=1 (dashboard oculto)  &settings=1 (abre Configuración)  &tour=<id> (visita guiada)
 //             &return=1 (la visita vuelve a la bienvenida)  &demo=1  &palette=1 (abre la paleta ⌘K)
@@ -44,6 +45,20 @@ function onboardingState() {
 }
 
 let onboarding = onboardingState();
+
+// Copias ficticias en una carpeta de iCloud Drive: tres diarias y una manual.
+const backupFolder = "/Users/demo/Library/Mobile Documents/com~apple~CloudDocs/Copias FlowDesk";
+const backupAt = (day: number, hour: number) => Math.floor(new Date(2026, 9, day, hour, 5).getTime() / 1000);
+let backups = {
+  settings: { folder: backupFolder, enabled: true, keep: 30, lastBackupAt: backupAt(26, 8), lastError: null as string | null },
+  folderAvailable: true,
+  backups: [
+    { path: `${backupFolder}/FlowDesk-2026-10-26-080500.sqlite3`, name: "FlowDesk-2026-10-26-080500.sqlite3", createdAt: backupAt(26, 8), size: 742_000, kind: "automatic" },
+    { path: `${backupFolder}/FlowDesk-2026-10-25-213000-manual.sqlite3`, name: "FlowDesk-2026-10-25-213000-manual.sqlite3", createdAt: backupAt(25, 21), size: 739_000, kind: "manual" },
+    { path: `${backupFolder}/FlowDesk-2026-10-25-075800.sqlite3`, name: "FlowDesk-2026-10-25-075800.sqlite3", createdAt: backupAt(25, 7), size: 736_000, kind: "automatic" },
+    { path: `${backupFolder}/FlowDesk-2026-10-24-091200.sqlite3`, name: "FlowDesk-2026-10-24-091200.sqlite3", createdAt: backupAt(24, 9), size: 731_000, kind: "automatic" },
+  ],
+};
 
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   ...teachingHandlers,
@@ -96,6 +111,12 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_clipboard: () => data.clipboardItems,
   get_shortcut_status: () => data.shortcuts,
   get_tray_preferences: () => ({ launchAtLogin: true, launchHidden: false, nextEventMinutes: 30 }),
+  get_backups: () => backups,
+  update_backup_settings: (args) => (backups = { ...backups, settings: { ...backups.settings, folder: args.folder as string | null, enabled: args.enabled as boolean, keep: args.keep as number } }),
+  backup_now: () => backups.backups[0],
+  restore_backup: () => null,
+  prepare_restart: () => null,
+  "plugin:process|restart": () => null,
   get_onboarding_state: () => onboarding,
   update_onboarding_preferences: (args) => (onboarding = { ...onboarding, ...(args.preferences as object) }),
   finish_welcome_onboarding: (args) =>
@@ -157,6 +178,16 @@ async function render() {
   );
   // Estados que solo se alcanzan interactuando: Configuración, visita guiada y demostraciones.
   if (params.get("settings")) window.setTimeout(() => useAppStore.getState().openPreferences(), 300);
+  // `scroll=<data-tour-id>`: lleva ese elemento a la vista en cuanto aparece (capturas).
+  const scrollTarget = params.get("scroll");
+  if (scrollTarget) {
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const element = document.querySelector(`[data-tour-id="${scrollTarget}"]`);
+      if (element) element.scrollIntoView({ block: "center" });
+      if (element || Date.now() - started > 3000) window.clearInterval(timer);
+    }, 100);
+  }
   if (params.get("palette")) window.setTimeout(() => useAppStore.getState().setPaletteOpen(true), 300);
   const tour = params.get("tour");
   // `return=1`: la visita se lanzó desde la bienvenida y debe volver a ella.

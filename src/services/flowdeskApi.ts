@@ -50,6 +50,7 @@ import type {
   NoteVersion,
   NoteVersionSummary,
 } from "../types/notes";
+import type { BackupEntry, BackupOverview } from "../types/backups";
 import type { RestoredItem, TrashItem } from "../types/trash";
 import type { Workspace, WorkspaceInput, WorkspaceState } from "../types/workspaces";
 
@@ -248,4 +249,11 @@ export const flowdeskApi = {
     invoke<Note>("archive_note", { noteId, archived }),
   deleteNote: (noteId: string) => invoke<void>("delete_note", { noteId }),
   shortcutStatus: () => invoke<ShortcutStatus[]>("get_shortcut_status"),
+  backups: () => invoke<BackupOverview>("get_backups"),
+  updateBackupSettings: (folder: string | null, enabled: boolean, keep: number) =>
+    invoke<BackupOverview>("update_backup_settings", { folder, enabled, keep }),
+  backupNow: () => invoke<BackupEntry>("backup_now"),
+  /** Deja lista la copia; después hay que reiniciar FlowDesk (`prepare_restart` + `relaunch`). */
+  restoreBackup: (path: string) => invoke<void>("restore_backup", { path }),
+  revealBackupFolder: () => invoke<void>("reveal_backup_folder"),
 };

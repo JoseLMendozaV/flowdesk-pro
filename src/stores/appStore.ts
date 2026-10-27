@@ -10,6 +10,7 @@ export type TeachingTab =
   | "students"
   | "groups"
   | "attendance"
+  | "syllabus"
   | "evaluations"
   | "grades"
   | "planning"

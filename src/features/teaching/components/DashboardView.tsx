@@ -12,7 +12,9 @@ import {
   Eye,
   EyeOff,
   GraduationCap,
+  ListChecks,
   MapPin,
+  NotebookPen,
   SlidersHorizontal,
   TrendingUp,
   UsersRound,
@@ -33,6 +35,7 @@ const widgetInfo: Record<OverviewWidgetId, { title: string; hint: string; wide: 
   kpis: { title: "Cifras clave", hint: "Estudiantes, asistencia, promedio, aprobando y en riesgo.", wide: true },
   attention: { title: "Requieren atención", hint: "Quién tiene nota o asistencia por debajo de las alertas.", wide: false },
   agenda: { title: "Próximas clases y entregas", hint: "Lo que viene según el horario y la planificación.", wide: false },
+  plan: { title: "Plan del curso", hint: "En qué tema vas, los atrasados y preparar la próxima clase.", wide: false },
   "attendance-trend": { title: "Asistencia por clase", hint: "Qué parte del grupo asistió a cada clase realizada.", wide: true },
   "grade-distribution": { title: "Distribución de notas", hint: "Cuántos estudiantes hay en cada nivel.", wide: false },
   evaluations: { title: "Promedio por evaluación", hint: "Cómo le fue al grupo en cada evaluación.", wide: false },
@@ -83,6 +86,7 @@ export function DashboardView({ courseId, navigate }: Props) {
     kpis: () => <Kpis overview={overview} />,
     attention: () => <Attention overview={overview} onOpen={setProfileId} />,
     agenda: () => <Agenda overview={overview} />,
+    plan: () => <Plan overview={overview} navigate={navigate} onPrepare={(topicId) => void run(() => api.prepareTopic(topicId))} />,
     "attendance-trend": () => <AttendanceTrend overview={overview} />,
     "grade-distribution": () => <GradeDistribution overview={overview} />,
     evaluations: () => <Evaluations overview={overview} />,
@@ -504,6 +508,55 @@ function StudentsTable({ overview, onOpen }: { overview: CourseOverview; onOpen:
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function Plan({ overview, navigate, onPrepare }: { overview: CourseOverview; navigate: (page: Page) => void; onPrepare: (topicId: number) => void }) {
+  const { syllabus } = overview;
+  if (!syllabus.total)
+    return (
+      <div className="empty-compact">
+        <ListChecks size={27} />
+        <strong>Sin plan todavía</strong>
+        <span>Pega el temario en «Plan» y repártelo en las clases.</span>
+        <button className="secondary-button" onClick={() => navigate("syllabus")}>Crear el plan</button>
+      </div>
+    );
+  const finished = syllabus.current == null;
+  return (
+    <div className="plan-widget">
+      <div className="plan-widget-head">
+        <strong>{finished ? "Plan completado" : `Tema ${syllabus.current} de ${syllabus.total}`}</strong>
+        <small>{syllabus.done} dados</small>
+      </div>
+      <span className="meter" aria-hidden>
+        <i style={{ width: `${(syllabus.done / syllabus.total) * 100}%` }} />
+      </span>
+      {!finished && (
+        <p className="plan-widget-current">
+          <span>{syllabus.currentTitle}</span>
+          <small>{syllabus.currentDate ? dayLabel(syllabus.currentDate) : "Sin sesión asignada"}</small>
+        </p>
+      )}
+      {syllabus.behind > 0 && (
+        <span className="status-pill critical">
+          <AlertTriangle size={12} />
+          {syllabus.behind === 1 ? "1 tema atrasado" : `${syllabus.behind} temas atrasados`}
+        </span>
+      )}
+      <div className="plan-widget-actions">
+        {syllabus.currentId != null && (
+          <button className="secondary-button" onClick={() => onPrepare(syllabus.currentId!)}>
+            <NotebookPen size={15} />
+            Preparar clase
+          </button>
+        )}
+        <button className="link-button" onClick={() => navigate("syllabus")}>
+          Ver el plan
+          <ArrowUpRight size={14} />
+        </button>
+      </div>
     </div>
   );
 }

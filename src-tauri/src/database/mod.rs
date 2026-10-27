@@ -25,7 +25,16 @@ const MIGRATIONS: &[(i64, &str)] = &[
         include_str!("../../migrations/0012_start_dates_tray_events.sql"),
     ),
     (13, include_str!("../../migrations/0013_teaching.sql")),
+    (
+        14,
+        include_str!("../../migrations/0014_academic_calendar_syllabus.sql"),
+    ),
 ];
+
+/// Versión del esquema que conoce esta versión de la app.
+pub fn latest_version() -> i64 {
+    MIGRATIONS.last().map(|(version, _)| *version).unwrap_or(0)
+}
 
 #[cfg(test)]
 pub fn migrations() -> &'static [(i64, &'static str)] {
@@ -40,6 +49,10 @@ impl Database {
     pub fn initialize(app: &AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
         let app_data_dir = app.path().app_data_dir()?;
         fs::create_dir_all(&app_data_dir)?;
+        // Una copia elegida para restaurar sustituye a la base antes de abrirla.
+        if let Err(error) = crate::backup::apply_pending(&app_data_dir) {
+            eprintln!("No se pudo restaurar la copia de seguridad: {error}");
+        }
         let database_path = app_data_dir.join("flowdesk.sqlite3");
         let mut connection = Connection::open(database_path)?;
 
@@ -71,6 +84,10 @@ impl Database {
                 )?;
                 transaction.commit()?;
             }
+        }
+
+        if let Err(error) = crate::backup::finish_restore(&connection, &app_data_dir) {
+            eprintln!("No se pudieron restaurar los adjuntos de la copia: {error}");
         }
 
         Ok(Self {

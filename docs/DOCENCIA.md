@@ -1,5 +1,7 @@
 # Docencia: Control Docente integrado en FlowDesk (0.8.0)
 
+> En la 0.9.0 se añaden el **calendario académico** (feriados de Panamá y calendario de la UTP) y el **plan del curso**. Ver [MEJORAS_0.9.md](MEJORAS_0.9.md).
+
 Fecha de verificación: 26 de octubre de 2026.
 
 La app de escritorio **Control Docente** (Tauri, Rust, React y SQLite, unas 6 400 líneas) pasa a ser la sección **Docencia** de FlowDesk. Se conserva todo lo que hacía y se añaden el **horario semanal** y la integración con el calendario, las tareas, los proyectos y la barra de menús.
@@ -72,7 +74,13 @@ La app de escritorio **Control Docente** (Tauri, Rust, React y SQLite, unas 6 40
 
 **Cambios sin guardar.** Si Asistencia o Calificaciones tienen cambios sin guardar, cambiar de pestaña, de materia o de sección de FlowDesk pide confirmación (`leaveGuard` en `appStore`).
 
-**Paleta ⌘K.** Incluye «Docencia», «Mi horario de clases» y las materias como resultados.
+**Paleta ⌘K.** Incluye «Docencia», «Mi horario de clases», «Plan del curso» y las materias como resultados.
+
+**Calendario académico y plan del curso (0.9.0).**
+- Los días sin clases del calendario académico quitan esas clases del calendario y las sesiones vacías de la asistencia.
+- Los feriados aparecen en el calendario como eventos de todo el día.
+- El plan reparte los temas en las sesiones y pasar lista los da por vistos.
+- Detalles en [MEJORAS_0.9.md](MEJORAS_0.9.md).
 
 ## Importación
 
@@ -95,6 +103,9 @@ Tras importar, Control Docente puede dejar de usarse; su base sigue intacta por 
   - `schedule.rs`: horario y sesiones.
   - `sync.rs`: reflejo en proyectos, calendario y tareas, dentro de la misma transacción.
   - `legacy.rs`: importaciones y respaldo.
+  - `academic.rs`: calendario académico (feriados de Panamá y UTP) y su efecto en horario y sesiones (0.9.0).
+  - `syllabus.rs`: plan del curso, reparto en sesiones y nota de preparación (0.9.0).
+  - `overview.rs`: Resumen (0.8.2).
   - `error.rs` y `models.rs`.
 - **Interfaz** (`src/features/teaching/`):
   - `TeachingPage` se carga solo al abrir Docencia (`React.lazy`).

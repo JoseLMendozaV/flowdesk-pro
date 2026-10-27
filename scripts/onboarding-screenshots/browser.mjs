@@ -24,6 +24,13 @@ async function connect(url) {
   const pending = new Map();
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
+    // HARNESS_DEBUG=1: muestra los errores y avisos de la página (para depurar el arnés).
+    if (process.env.HARNESS_DEBUG && message.method === "Runtime.exceptionThrown") {
+      console.error("[página] excepción:", message.params.exceptionDetails.exception?.description ?? message.params.exceptionDetails.text);
+    }
+    if (process.env.HARNESS_DEBUG && message.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(message.params.type)) {
+      console.error(`[página] ${message.params.type}:`, message.params.args.map((arg) => arg.value ?? arg.description).join(" "));
+    }
     if (message.id && pending.has(message.id)) {
       const { resolve, reject } = pending.get(message.id);
       pending.delete(message.id);

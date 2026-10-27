@@ -17,6 +17,7 @@ export type FeatureIconName =
   | "search"
   | "trash"
   | "teaching"
+  | "backups"
   | "ai";
 
 export type FeatureTone = "blue" | "violet" | "amber" | "emerald" | "orange" | "rose" | "sky" | "slate";

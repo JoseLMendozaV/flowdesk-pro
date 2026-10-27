@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 // Comandos de Docencia (src-tauri/src/teaching/), todos con el prefijo `teaching_`.
 import type {
+  AcademicDay,
+  AcademicDayInput,
   AcademicEventInput,
   AcademicEventRow,
   AcademicPeriodInput,
@@ -12,10 +14,12 @@ import type {
   AttendanceMatrix,
   AttendanceUpdate,
   Bootstrap,
+  CalendarChange,
   CourseInput,
   CourseOverview,
   CourseSettings,
   CourseSettingsInput,
+  DistributeResult,
   EvaluationInput,
   EvaluationRow,
   GenerateSessionsResult,
@@ -41,7 +45,9 @@ import type {
   StudentInput,
   StudentProfile,
   StudentRow,
+  Syllabus,
   TimeBlocks,
+  TopicInput,
 } from "../types";
 
 export const api = {
@@ -119,4 +125,20 @@ export const api = {
     invoke<GenerateSessionsResult>("teaching_generate_sessions", { courseId }),
   timeBlocks: () => invoke<TimeBlocks>("teaching_get_time_blocks"),
   saveTimeBlocks: (blocks: TimeBlocks) => invoke<TimeBlocks>("teaching_save_time_blocks", { blocks }),
+  academicCalendar: () => invoke<AcademicDay[]>("teaching_get_academic_calendar"),
+  saveAcademicDay: (input: AcademicDayInput) => invoke<CalendarChange>("teaching_save_academic_day", { input }),
+  deleteAcademicDay: (dayId: number) => invoke<CalendarChange>("teaching_delete_academic_day", { dayId }),
+  /** Feriados nacionales de Panamá (este año y el próximo) y calendario de la UTP. */
+  loadOfficialCalendar: () => invoke<CalendarChange>("teaching_load_official_calendar"),
+  syllabus: (courseId: number) => invoke<Syllabus>("teaching_get_syllabus", { courseId }),
+  saveTopic: (input: TopicInput) => invoke<number>("teaching_save_topic", { input }),
+  deleteTopic: (topicId: number) => invoke<void>("teaching_delete_topic", { topicId }),
+  setTopicDone: (topicId: number, done: boolean) => invoke<void>("teaching_set_topic_done", { topicId, done }),
+  /** Temario pegado, un tema por línea («Semana 3: …» fija la semana). */
+  addTopics: (courseId: number, text: string) => invoke<number>("teaching_add_topics", { courseId, text }),
+  reorderTopics: (courseId: number, ids: number[]) => invoke<void>("teaching_reorder_topics", { courseId, ids }),
+  distributeTopics: (courseId: number, reset: boolean) =>
+    invoke<DistributeResult>("teaching_distribute_topics", { courseId, reset }),
+  /** Abre (o crea) la nota flotante para preparar la clase del tema. */
+  prepareTopic: (topicId: number) => invoke<string>("teaching_prepare_topic", { topicId }),
 };

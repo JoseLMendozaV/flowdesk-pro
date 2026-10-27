@@ -1,5 +1,6 @@
 // Los tipos de datos se generan desde los structs de Rust (src-tauri/src/models.rs) con
 // `npm run bindings`. Aquí se reexportan para importarlos desde un solo lugar.
+export type { AcademicDay, AcademicDayInput, AcademicDayKind, CalendarChange } from "./bindings/AcademicDay";
 export type { AcademicEventInput } from "./bindings/AcademicEventInput";
 export type { AcademicEventRow } from "./bindings/AcademicEventRow";
 export type { AcademicPeriodInput } from "./bindings/AcademicPeriodInput";
@@ -58,6 +59,14 @@ export type { RubricScoreCell } from "./bindings/RubricScoreCell";
 export type { RubricScoreInput } from "./bindings/RubricScoreInput";
 export type { GenerateSessionsResult, ScheduleKind, ScheduleSlot, ScheduleSlotInput, TimeBlocks } from "./bindings/ScheduleSlot";
 export type { SessionColumn } from "./bindings/SessionColumn";
+export type {
+  CourseTopic,
+  DistributeResult,
+  Syllabus,
+  SyllabusProgress,
+  TopicInput,
+  TopicSession,
+} from "./bindings/Syllabus";
 export type { SessionInput } from "./bindings/SessionInput";
 export type { StudentGradeRow } from "./bindings/StudentGradeRow";
 export type { StudentInput } from "./bindings/StudentInput";
@@ -70,6 +79,7 @@ export type Page =
   | "students"
   | "groups"
   | "attendance"
+  | "syllabus"
   | "evaluations"
   | "grades"
   | "planning"

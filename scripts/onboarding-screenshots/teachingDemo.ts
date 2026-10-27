@@ -134,10 +134,66 @@ const overview = {
     { startsAt: Math.floor(new Date(2026, 9, 27, 15, 20).getTime() / 1000), endsAt: Math.floor(new Date(2026, 9, 27, 16, 55).getTime() / 1000), kind: "lab", room: "2D3" },
     { startsAt: Math.floor(new Date(2026, 9, 29, 12, 50).getTime() / 1000), endsAt: Math.floor(new Date(2026, 9, 29, 14, 25).getTime() / 1000), kind: "theory", room: "2D3" },
   ],
+  syllabus: { total: 15, done: 6, current: 7, currentTitle: "Pruebas unitarias con JUnit", currentId: 7, currentDate: "2026-10-22", behind: 1 },
 };
 
+// Plan del curso ficticio: 15 temas, 6 dados; el 7 tocaba el jueves pasado (atrasado) y el
+// 8 es hoy. Del 3 al 10 de noviembre no hay clases (feriados).
+const topicTitles = [
+  "Introducción al desarrollo de software",
+  "Requisitos y casos de uso",
+  "Modelado con UML",
+  "Patrones de diseño",
+  "Arquitectura por capas",
+  "Control de versiones con Git",
+  "Pruebas unitarias con JUnit",
+  "Integración continua",
+  "Persistencia con JPA",
+  "Servicios REST",
+  "Seguridad en aplicaciones web",
+  "Interfaces con React",
+  "Despliegue en la nube",
+  "Mantenimiento y refactorización",
+  "Presentación del proyecto final",
+];
+const planDates = ["2026-09-29", "2026-10-01", "2026-10-06", "2026-10-08", "2026-10-13", "2026-10-20", "2026-10-22", "2026-10-27", "2026-10-29", "2026-11-12", "2026-11-17", "2026-11-19", "2026-11-24"];
+export const syllabus = {
+  topics: topicTitles.map((title, index) => ({
+    id: index + 1,
+    position: index + 1,
+    title,
+    week: index >= 13 ? 15 : null,
+    details: index === 6 ? "Casos de prueba, aserciones y cobertura" : "",
+    sessionId: index < 13 ? index + 1 : null,
+    sessionNumber: index < 13 ? index + 1 : null,
+    sessionDate: index < 13 ? planDates[index] : null,
+    sessionWeek: index < 13 ? Math.floor(index / 2) + 1 : null,
+    done: index < 6,
+    noteId: index === 6 ? "n1" : null,
+  })),
+  sessions: planDates.map((date, index) => ({ id: index + 1, number: index + 1, date, week: Math.floor(index / 2) + 1, held: index < 6, dayOff: false })),
+  progress: overview.syllabus,
+};
+
+// Calendario académico ficticio: feriados de Panamá y días de la UTP del II semestre.
+export const academicDays = [
+  { id: 1, title: "Aniversario de la UTP", kind: "break", startsOn: "2026-08-14", endsOn: "2026-08-14", cancelsClasses: true, source: "utp" },
+  { id: 2, title: "Clases del II semestre 2026", kind: "term", startsOn: "2026-08-17", endsOn: "2026-12-05", cancelsClasses: false, source: "utp" },
+  { id: 3, title: "Día de los Difuntos", kind: "break", startsOn: "2026-11-02", endsOn: "2026-11-02", cancelsClasses: true, source: "utp" },
+  { id: 4, title: "Separación de Panamá de Colombia", kind: "holiday", startsOn: "2026-11-03", endsOn: "2026-11-03", cancelsClasses: true, source: "panama" },
+  { id: 5, title: "Día de los Símbolos Patrios", kind: "break", startsOn: "2026-11-04", endsOn: "2026-11-04", cancelsClasses: true, source: "utp" },
+  { id: 6, title: "Consolidación de la Separación (Colón)", kind: "holiday", startsOn: "2026-11-05", endsOn: "2026-11-05", cancelsClasses: true, source: "panama" },
+  { id: 7, title: "Día compensado", kind: "break", startsOn: "2026-11-06", endsOn: "2026-11-06", cancelsClasses: true, source: "utp" },
+  { id: 8, title: "Primer Grito de Independencia", kind: "holiday", startsOn: "2026-11-10", endsOn: "2026-11-10", cancelsClasses: true, source: "panama" },
+  { id: 9, title: "Últimos retiros de asignatura", kind: "deadline", startsOn: "2026-11-16", endsOn: "2026-11-16", cancelsClasses: false, source: "utp" },
+  { id: 10, title: "Independencia de Panamá de España", kind: "holiday", startsOn: "2026-11-28", endsOn: "2026-11-28", cancelsClasses: true, source: "panama" },
+  { id: 11, title: "Exámenes finales del II semestre", kind: "exams", startsOn: "2026-12-07", endsOn: "2026-12-22", cancelsClasses: true, source: "utp" },
+  { id: 12, title: "Día de la Madre", kind: "holiday", startsOn: "2026-12-08", endsOn: "2026-12-08", cancelsClasses: true, source: "panama" },
+  { id: 13, title: "Entrega de calificaciones del II semestre", kind: "deadline", startsOn: "2026-12-14", endsOn: "2026-12-29", cancelsClasses: false, source: "utp" },
+];
+
 let overviewLayout = {
-  widgets: ["kpis", "attention", "agenda", "attendance-trend", "grade-distribution", "evaluations", "students", "groups", "quick-actions"].map((id) => ({ id, visible: true })),
+  widgets: ["kpis", "attention", "agenda", "plan", "attendance-trend", "grade-distribution", "evaluations", "students", "groups", "quick-actions"].map((id) => ({ id, visible: true })),
 };
 
 
@@ -181,6 +237,16 @@ export const teachingHandlers: Record<string, (args: Record<string, unknown>) =>
   teaching_get_analytics: () => analytics,
   teaching_get_report_summary: () => ({ course: courses[0], generatedAt: new Date().toISOString(), totalStudents: 12, activeStudents: 11, sessions: 6, evaluations: 4, groups: 2, gradeAverage: 78.9, attendanceAverage: 86.4 }),
   teaching_get_course_settings: () => ({ id: 1, title: courses[0].title, code: "8408", groupName: "2GS131", periodLabel: "Segundo semestre", academicPeriodId: null, professor: "Prof. Demo", passingGrade: 71, attendanceMinimum: 80, lowGradeAlert: 71, lowAttendanceAlert: 80, promotionRequiresAttendance: true, isArchived: false }),
-  teaching_generate_sessions: () => ({ created: 30, updated: 1 }),
+  teaching_generate_sessions: () => ({ created: 30, updated: 1, skipped: 6 }),
+  teaching_get_syllabus: () => syllabus,
+  teaching_prepare_topic: () => "n1",
+  teaching_set_topic_done: () => null,
+  teaching_add_topics: (args) => String(args.text).split("\n").filter((line) => line.trim()).length,
+  teaching_distribute_topics: () => ({ linked: 2, left: 0 }),
+  teaching_reorder_topics: () => null,
+  teaching_get_academic_calendar: () => academicDays,
+  teaching_load_official_calendar: () => ({ added: 29, removedSessions: 4, keptSessions: 1, restoredSessions: 0 }),
+  teaching_save_academic_day: () => ({ added: 0, removedSessions: 1, keptSessions: 0, restoredSessions: 0 }),
+  teaching_delete_academic_day: () => ({ added: 0, removedSessions: 0, keptSessions: 0, restoredSessions: 1 }),
   teaching_save_schedule_slot: () => 5,
 };

@@ -25,7 +25,8 @@ export type ScheduleSlotInput = Omit<ScheduleSlot, "id" | "courseTitle" | "group
   id: number | null;
 };
 
-export type GenerateSessionsResult = { created: number; updated: number };
+/** `skipped`: días del horario que el calendario académico marca sin clases. */
+export type GenerateSessionsResult = { created: number; updated: number; skipped: number };
 
 /**
  * Bloques horarios de la institución: `count` bloques de `minutes` minutos desde `first`

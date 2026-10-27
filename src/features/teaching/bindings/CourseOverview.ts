@@ -1,6 +1,7 @@
 // Igual que los structs del mismo nombre en src-tauri/src/teaching/models.rs.
 import type { ChartValue } from "./ChartValue";
 import type { CourseSummary } from "./CourseSummary";
+import type { SyllabusProgress } from "./Syllabus";
 
 export type OverviewRules = {
   passingGrade: number;
@@ -78,6 +79,7 @@ export type CourseOverview = {
   groups: ChartValue[];
   agenda: UpcomingItem[];
   nextClasses: NextClass[];
+  syllabus: SyllabusProgress;
 };
 
 export type OverviewWidgetId =
@@ -89,6 +91,7 @@ export type OverviewWidgetId =
   | "evaluations"
   | "groups"
   | "agenda"
+  | "plan"
   | "quick-actions";
 
 export type OverviewLayout = { widgets: { id: OverviewWidgetId; visible: boolean }[] };

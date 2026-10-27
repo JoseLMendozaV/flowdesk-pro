@@ -580,6 +580,8 @@ pub struct ScheduleSlotInput {
 pub struct GenerateSessionsResult {
     pub created: i64,
     pub updated: i64,
+    /// Días del horario que el calendario académico marca sin clases.
+    pub skipped: i64,
 }
 
 fn default_kind() -> String {
@@ -712,6 +714,7 @@ pub struct CourseOverview {
     pub groups: Vec<ChartValue>,
     pub agenda: Vec<UpcomingItem>,
     pub next_classes: Vec<NextClass>,
+    pub syllabus: SyllabusProgress,
 }
 
 /// Paneles del Resumen en el orden elegido, y si se muestran.
@@ -726,4 +729,120 @@ pub struct OverviewWidget {
 #[serde(rename_all = "camelCase")]
 pub struct OverviewLayout {
     pub widgets: Vec<OverviewWidget>,
+}
+
+/// Día o periodo del calendario académico. Fechas `AAAA-MM-DD`, ambas incluidas.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcademicDay {
+    pub id: i64,
+    pub title: String,
+    /// `holiday`, `break`, `exams`, `term` o `deadline`.
+    pub kind: String,
+    pub starts_on: String,
+    pub ends_on: String,
+    pub cancels_classes: bool,
+    /// `panama`, `utp` o `user`.
+    pub source: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcademicDayInput {
+    pub id: Option<i64>,
+    pub title: String,
+    pub kind: String,
+    pub starts_on: String,
+    pub ends_on: String,
+    pub cancels_classes: bool,
+}
+
+/// Efecto de un cambio del calendario académico en Docencia.
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarChange {
+    /// Días añadidos al cargar el calendario oficial.
+    pub added: i64,
+    /// Sesiones de asistencia vacías que caían en días sin clases y se quitaron.
+    pub removed_sessions: i64,
+    /// Sesiones en días sin clases que se conservan porque ya tienen asistencia.
+    pub kept_sessions: i64,
+    /// Sesiones que vuelven a crearse en días que dejaron de ser libres.
+    pub restored_sessions: i64,
+}
+
+/// Tema del plan del curso.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CourseTopic {
+    pub id: i64,
+    pub position: i64,
+    pub title: String,
+    /// Semana prevista cuando el tema aún no tiene sesión.
+    pub week: Option<i64>,
+    pub details: String,
+    pub session_id: Option<i64>,
+    pub session_number: Option<i64>,
+    pub session_date: Option<String>,
+    /// Semana del curso de la sesión (la 1 es la de la primera sesión).
+    pub session_week: Option<i64>,
+    pub done: bool,
+    pub note_id: Option<String>,
+}
+
+/// Sesión de asistencia a la que se puede asignar un tema.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopicSession {
+    pub id: i64,
+    pub number: i64,
+    pub date: Option<String>,
+    pub week: Option<i64>,
+    pub held: bool,
+    pub day_off: bool,
+}
+
+/// «Vamos en el tema 7 de 15».
+#[derive(Debug, Default, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyllabusProgress {
+    pub total: i64,
+    pub done: i64,
+    /// Posición (desde 1) del primer tema pendiente.
+    pub current: Option<i64>,
+    pub current_title: Option<String>,
+    pub current_id: Option<i64>,
+    pub current_date: Option<String>,
+    /// Temas pendientes cuya sesión ya pasó.
+    pub behind: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Syllabus {
+    pub topics: Vec<CourseTopic>,
+    pub sessions: Vec<TopicSession>,
+    pub progress: SyllabusProgress,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopicInput {
+    pub id: Option<i64>,
+    pub course_id: i64,
+    pub title: String,
+    pub week: Option<i64>,
+    #[serde(default)]
+    pub details: String,
+    pub session_id: Option<i64>,
+    #[serde(default)]
+    pub done: bool,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DistributeResult {
+    pub linked: i64,
+    /// Temas que quedaron sin sesión porque no hay suficientes.
+    pub left: i64,
 }

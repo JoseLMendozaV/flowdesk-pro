@@ -915,3 +915,484 @@ fn computes_the_overview_for_a_real_flowdesk_database() {
         );
     }
 }
+
+fn ymd(year: i32, month: u32, day: u32) -> NaiveDate {
+    NaiveDate::from_ymd_opt(year, month, day).expect("fecha")
+}
+
+#[test]
+fn panama_holidays_match_the_official_2026_list() {
+    use super::academic::{easter, panama_holidays};
+    let days: Vec<NaiveDate> = panama_holidays(2026)
+        .into_iter()
+        .map(|(day, _)| day)
+        .collect();
+    assert_eq!(
+        days,
+        [
+            ymd(2026, 1, 1),
+            ymd(2026, 1, 9),
+            ymd(2026, 2, 17),
+            ymd(2026, 4, 3),
+            ymd(2026, 5, 1),
+            ymd(2026, 11, 3),
+            ymd(2026, 11, 5),
+            ymd(2026, 11, 10),
+            ymd(2026, 11, 28),
+            ymd(2026, 12, 8),
+            // El 20 de diciembre de 2026 es domingo: se libra el lunes.
+            ymd(2026, 12, 21),
+            ymd(2026, 12, 25),
+        ]
+    );
+    assert!(panama_holidays(2026)[10].1.contains("puente"));
+    assert_eq!(easter(2027), ymd(2027, 3, 28));
+    // Martes de Carnaval de 2027, como en el calendario de la UTP.
+    assert!(
+        panama_holidays(2027)
+            .iter()
+            .any(|(day, _)| *day == ymd(2027, 2, 9))
+    );
+}
+
+/// Clases de la franja en un intervalo, sin los días del calendario académico.
+fn classes_between(database: &Database, start: i64, end: i64) -> Vec<i64> {
+    query_range(database, start, end)
+        .expect("range")
+        .events
+        .into_iter()
+        .filter(|event| !event.is_all_day)
+        .map(|event| event.starts_at)
+        .collect()
+}
+
+#[test]
+fn days_off_remove_classes_and_empty_sessions_and_give_them_back() {
+    use super::academic::{apply, load_official, previous_range};
+    let database = Database::in_memory();
+    let course_id = course(&database, "Desarrollo de Software VIII", "2GS131");
+    // Martes, del 3 de agosto al 4 de diciembre de 2026.
+    save_slot(&mut database.lock().expect("lock"), &slot(course_id, 2)).expect("slot");
+    generate_sessions(&mut database.lock().expect("lock"), course_id).expect("sessions");
+    assert_eq!(count(&database, "SELECT COUNT(*) FROM class_sessions"), 18);
+    // El 3 de noviembre ya tiene asistencia; el 24 se quitó a mano en el calendario.
+    execute(
+        &database,
+        &format!(
+            "INSERT INTO students(id, identification, name) VALUES (1, '8-111', 'Ana');
+             INSERT INTO enrollments(id, course_id, student_id) VALUES (1, {course_id}, 1);
+             INSERT INTO attendance_records(enrollment_id, session_id, status)
+             SELECT 1, id, 'P' FROM class_sessions WHERE date = '2026-11-03';"
+        ),
+    );
+    let event_id = text(&database, "SELECT calendar_event_id FROM course_schedule").expect("event");
+    remove_event(
+        &database,
+        &event_id,
+        Some(EventScope::This),
+        Some(local(2026, 11, 24, 19, 30)),
+    )
+    .expect("a mano");
+
+    let change = {
+        let mut connection = database.lock().expect("lock");
+        let transaction = connection.transaction().expect("tx");
+        let added = load_official(&transaction, &[2026]).expect("load");
+        assert!(added > 20);
+        assert_eq!(load_official(&transaction, &[2026]).expect("again"), 0);
+        let change = apply(&transaction, None).expect("apply");
+        transaction.commit().expect("commit");
+        change
+    };
+    // Martes libres en el periodo: 3 de noviembre (con datos, se queda) y 10 (vacía, se va).
+    assert_eq!((change.removed_sessions, change.kept_sessions), (1, 1));
+    assert_eq!(count(&database, "SELECT COUNT(*) FROM class_sessions"), 17);
+    assert_eq!(
+        count(
+            &database,
+            "SELECT COUNT(*) FROM class_sessions WHERE date = '2026-11-10'"
+        ),
+        0
+    );
+    assert_eq!(
+        count(&database, "SELECT MAX(number) FROM class_sessions"),
+        17
+    );
+    // En el calendario desaparecen las clases de los feriados y sigue la quitada a mano.
+    let november = classes_between(
+        &database,
+        local(2026, 11, 1, 0, 0),
+        local(2026, 12, 1, 0, 0),
+    );
+    assert_eq!(november, [local(2026, 11, 17, 19, 30)]);
+    // Los días libres aparecen como eventos de todo el día; los periodos de clases, no.
+    assert!(
+        count(
+            &database,
+            "SELECT COUNT(*) FROM calendar_events WHERE external_id LIKE 'academic-day:%' AND is_all_day = 1"
+        ) > 10
+    );
+    assert_eq!(
+        count(
+            &database,
+            "SELECT COUNT(*) FROM academic_calendar WHERE kind = 'term' AND calendar_event_id IS NOT NULL"
+        ),
+        0
+    );
+    // Generar de nuevo no recrea las sesiones de días libres.
+    let again = generate_sessions(&mut database.lock().expect("lock"), course_id).expect("again");
+    assert_eq!((again.created, again.skipped), (0, 2));
+
+    // Si el 10 de noviembre deja de ser libre, su clase y su sesión vuelven.
+    let change = {
+        let mut connection = database.lock().expect("lock");
+        let transaction = connection.transaction().expect("tx");
+        let day_id: i64 = transaction
+            .query_row(
+                "SELECT id FROM academic_calendar WHERE starts_on = '2026-11-10'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("day");
+        let previous = previous_range(&transaction, day_id).expect("range");
+        transaction
+            .execute("DELETE FROM academic_calendar WHERE id = ?1", [day_id])
+            .expect("delete");
+        let change = apply(&transaction, previous).expect("apply");
+        transaction.commit().expect("commit");
+        change
+    };
+    assert_eq!(change.restored_sessions, 1);
+    assert_eq!(
+        count(
+            &database,
+            "SELECT number FROM class_sessions WHERE date = '2026-11-10'"
+        ),
+        15
+    );
+    let november = classes_between(
+        &database,
+        local(2026, 11, 1, 0, 0),
+        local(2026, 12, 1, 0, 0),
+    );
+    assert_eq!(
+        november,
+        [local(2026, 11, 10, 19, 30), local(2026, 11, 17, 19, 30)]
+    );
+    // Su evento del calendario se borra con él.
+    assert_eq!(
+        count(
+            &database,
+            "SELECT COUNT(*) FROM calendar_events WHERE title = 'Primer Grito de Independencia'"
+        ),
+        0
+    );
+}
+
+#[test]
+fn academic_days_are_validated() {
+    use super::{academic::save_day, models::AcademicDayInput};
+    let database = Database::in_memory();
+    let connection = database.lock().expect("lock");
+    let day = |title: &str, kind: &str, from: &str, until: &str| AcademicDayInput {
+        id: None,
+        title: title.to_string(),
+        kind: kind.to_string(),
+        starts_on: from.to_string(),
+        ends_on: until.to_string(),
+        cancels_classes: true,
+    };
+    assert!(save_day(&connection, &day("", "holiday", "2026-11-03", "2026-11-03")).is_err());
+    assert!(save_day(&connection, &day("X", "fiesta", "2026-11-03", "2026-11-03")).is_err());
+    assert!(save_day(&connection, &day("X", "break", "2026-11-05", "2026-11-03")).is_err());
+    let (id, previous) = save_day(
+        &connection,
+        &day("Semana de receso", "break", "2026-09-28", "2026-10-02"),
+    )
+    .expect("save");
+    assert!(previous.is_none());
+    let (_, previous) = save_day(
+        &connection,
+        &AcademicDayInput {
+            id: Some(id),
+            ..day("Receso", "break", "2026-09-29", "2026-10-02")
+        },
+    )
+    .expect("update");
+    assert_eq!(previous, Some((ymd(2026, 9, 28), ymd(2026, 10, 2))));
+}
+
+#[test]
+fn the_course_plan_tracks_progress_and_links_sessions() {
+    use super::{
+        commands::store_attendance,
+        models::{AttendanceUpdate, TopicInput},
+        syllabus::{
+            add_topics, build_syllabus, distribute, parse_topic_line, prepare_note, save_topic,
+        },
+    };
+    assert_eq!(
+        parse_topic_line("  - Semana 3: Árboles binarios"),
+        Some(("Árboles binarios".to_string(), Some(3)))
+    );
+    assert_eq!(
+        parse_topic_line("S4 - Grafos"),
+        Some(("Grafos".to_string(), Some(4)))
+    );
+    assert_eq!(
+        parse_topic_line("Tema 2. Pilas"),
+        Some(("Pilas".to_string(), None))
+    );
+    assert_eq!(
+        parse_topic_line("1) Introducción"),
+        Some(("Introducción".to_string(), None))
+    );
+    assert_eq!(
+        parse_topic_line("Sistemas operativos"),
+        Some(("Sistemas operativos".to_string(), None))
+    );
+    assert_eq!(
+        parse_topic_line("3 en raya"),
+        Some(("3 en raya".to_string(), None))
+    );
+    assert_eq!(parse_topic_line("   •  "), None);
+
+    let database = Database::in_memory();
+    let course_id = course(&database, "Desarrollo de Software V", "2GS221");
+    // Miércoles y viernes, del 19 al 28 de agosto: 4 sesiones.
+    let short = ScheduleSlotInput {
+        starts_on: "2026-08-17".to_string(),
+        ends_on: "2026-08-28".to_string(),
+        ..slot(course_id, 3)
+    };
+    save_slot(&mut database.lock().expect("lock"), &short).expect("wednesday");
+    save_slot(
+        &mut database.lock().expect("lock"),
+        &ScheduleSlotInput {
+            weekday: 5,
+            ..short
+        },
+    )
+    .expect("friday");
+    generate_sessions(&mut database.lock().expect("lock"), course_id).expect("sessions");
+
+    let connection = database.lock().expect("lock");
+    assert_eq!(
+        add_topics(
+            &connection,
+            course_id,
+            "Introducción\nSemana 2: Pilas\nColas\n\nListas\nÁrboles"
+        )
+        .expect("add"),
+        5
+    );
+    let result = distribute(&connection, course_id, false).expect("distribute");
+    // Introducción el 19; Pilas espera a la semana 2 (miércoles 26); Colas el viernes 28;
+    // Listas y Árboles se quedan sin sesión.
+    assert_eq!((result.linked, result.left), (3, 2));
+    let plan = build_syllabus(&connection, course_id, ymd(2026, 8, 27)).expect("plan");
+    let dates: Vec<Option<&str>> = plan
+        .topics
+        .iter()
+        .map(|topic| topic.session_date.as_deref())
+        .collect();
+    assert_eq!(
+        dates,
+        [
+            Some("2026-08-19"),
+            Some("2026-08-26"),
+            Some("2026-08-28"),
+            None,
+            None
+        ]
+    );
+    assert_eq!(plan.topics[1].session_week, Some(2));
+    // El tema de la sesión (el que se ve en Asistencia) se rellena con el del plan.
+    let session_topic: String = connection
+        .query_row(
+            "SELECT topic FROM class_sessions WHERE date = '2026-08-19'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("topic");
+    assert_eq!(session_topic, "Introducción");
+    // A 27 de agosto, «Introducción» y «Pilas» ya debían haberse dado.
+    assert_eq!(plan.progress.total, 5);
+    assert_eq!(plan.progress.current, Some(1));
+    assert_eq!(plan.progress.behind, 2);
+
+    // Pasar asistencia en la sesión cumple su tema.
+    let first_session: i64 = connection
+        .query_row(
+            "SELECT id FROM class_sessions WHERE date = '2026-08-19'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("session");
+    drop(connection);
+    execute(
+        &database,
+        &format!(
+            "INSERT INTO students(id, identification, name) VALUES (1, '8-111', 'Ana');
+             INSERT INTO enrollments(id, course_id, student_id) VALUES (1, {course_id}, 1);"
+        ),
+    );
+    store_attendance(
+        &mut database.lock().expect("lock"),
+        &[AttendanceUpdate {
+            enrollment_id: 1,
+            session_id: first_session,
+            status: "P".to_string(),
+        }],
+    )
+    .expect("attendance");
+    let connection = database.lock().expect("lock");
+    let plan = build_syllabus(&connection, course_id, ymd(2026, 8, 27)).expect("plan");
+    assert!(plan.topics[0].done);
+    assert_eq!(
+        (
+            plan.progress.done,
+            plan.progress.current,
+            plan.progress.behind
+        ),
+        (1, Some(2), 1)
+    );
+    assert_eq!(plan.progress.current_title.as_deref(), Some("Pilas"));
+
+    // Cambiar el título sigue en la sesión; quitar la sesión la deja libre.
+    let pilas = &plan.topics[1];
+    save_topic(
+        &connection,
+        &TopicInput {
+            id: Some(pilas.id),
+            course_id,
+            title: "Pilas y colas".to_string(),
+            week: Some(2),
+            details: String::new(),
+            session_id: None,
+            done: false,
+        },
+    )
+    .expect("edit");
+    let topic: String = connection
+        .query_row(
+            "SELECT topic FROM class_sessions WHERE date = '2026-08-26'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("topic");
+    assert_eq!(topic, "");
+    // Con `reset`, los pendientes se reparten de nuevo tras el último tema dado: «Pilas y
+    // colas» vuelve al 26 (semana 2) y «Colas» al 28.
+    let result = distribute(&connection, course_id, true).expect("again");
+    assert_eq!((result.linked, result.left), (2, 2));
+
+    // La nota de preparación se crea una vez, en el proyecto de la materia.
+    let note_id = prepare_note(&connection, pilas.id).expect("note");
+    assert_eq!(prepare_note(&connection, pilas.id).expect("same"), note_id);
+    let (title, project): (String, Option<String>) = connection
+        .query_row(
+            "SELECT title, project_id FROM notes WHERE id = ?1",
+            [&note_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("note row");
+    assert_eq!(title, "Preparar: Pilas y colas");
+    assert!(project.is_some());
+    let content: String = connection
+        .query_row(
+            "SELECT content FROM notes WHERE id = ?1",
+            [&note_id],
+            |row| row.get(0),
+        )
+        .expect("content");
+    assert!(content.contains("Objetivos") && content.contains("Tema 2"));
+    // Borrar la nota libera el tema para crear otra.
+    connection
+        .execute("DELETE FROM notes WHERE id = ?1", [&note_id])
+        .expect("delete");
+    assert_ne!(prepare_note(&connection, pilas.id).expect("new"), note_id);
+}
+
+/// Con `FLOWDESK_DB` apuntando a una COPIA de la base real: la migra, carga el calendario
+/// oficial y cuenta qué sesiones quita. `cargo test academic_calendar_to_a_real -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn applies_the_academic_calendar_to_a_real_flowdesk_database_copy() {
+    let Ok(path) = std::env::var("FLOWDESK_DB") else {
+        return;
+    };
+    let mut connection = Connection::open(&path).expect("copy");
+    connection
+        .execute_batch("PRAGMA foreign_keys = ON;")
+        .expect("fk");
+    let current: i64 = connection
+        .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| {
+            row.get(0)
+        })
+        .expect("version");
+    for (version, sql) in crate::database::migrations() {
+        if *version > current {
+            let transaction = connection.transaction().expect("tx");
+            transaction.execute_batch(sql).expect("migration");
+            transaction
+                .execute(
+                    "INSERT INTO schema_migrations(version) VALUES (?1)",
+                    [version],
+                )
+                .expect("record");
+            transaction.commit().expect("commit");
+        }
+    }
+    let before: Vec<(String, String)> = connection
+        .prepare("SELECT c.title, s.date FROM class_sessions s JOIN courses c ON c.id = s.course_id ORDER BY c.title, s.date")
+        .expect("sessions")
+        .query_map([], |row| Ok((row.get(0)?, row.get::<_, Option<String>>(1)?.unwrap_or_default())))
+        .expect("rows")
+        .collect::<Result<_, _>>()
+        .expect("before");
+    let transaction = connection.transaction().expect("tx");
+    let added = super::academic::load_official(&transaction, &[2026, 2027]).expect("load");
+    let change = super::academic::apply(&transaction, None).expect("apply");
+    transaction.commit().expect("commit");
+    let after: Vec<(String, String)> = connection
+        .prepare("SELECT c.title, s.date FROM class_sessions s JOIN courses c ON c.id = s.course_id ORDER BY c.title, s.date")
+        .expect("sessions")
+        .query_map([], |row| Ok((row.get(0)?, row.get::<_, Option<String>>(1)?.unwrap_or_default())))
+        .expect("rows")
+        .collect::<Result<_, _>>()
+        .expect("after");
+    println!(
+        "días añadidos {added}; sesiones quitadas {}, conservadas con datos {}",
+        change.removed_sessions, change.kept_sessions
+    );
+    for removed in before.iter().filter(|session| !after.contains(session)) {
+        println!("  quitada: {} · {}", removed.0, removed.1);
+    }
+    let days_off = super::academic::DaysOff::load(&connection).expect("days");
+    for (title, date) in &after {
+        if let Ok(day) = NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            && days_off.contains(day)
+        {
+            println!("  conservada (tiene asistencia): {title} · {date}");
+        }
+    }
+    let skipped: Vec<(String, String)> = connection
+        .prepare("SELECT c.title || ' · ' || s.kind, s.skipped_occurrences FROM course_schedule s JOIN courses c ON c.id = s.course_id")
+        .expect("slots")
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .expect("rows")
+        .collect::<Result<_, _>>()
+        .expect("skipped");
+    for (slot, occurrences) in skipped {
+        let days: Vec<String> = crate::recurrence::parse_exceptions(&occurrences)
+            .into_iter()
+            .filter_map(|at| Local.timestamp_opt(at, 0).single())
+            .map(|moment| moment.format("%d/%m").to_string())
+            .collect();
+        println!(
+            "  clases quitadas del calendario: {slot}: {}",
+            days.join(", ")
+        );
+    }
+}

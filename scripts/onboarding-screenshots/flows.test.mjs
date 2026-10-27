@@ -54,19 +54,19 @@ test("la bienvenida avanza, retrocede, salta a un paso y se completa", async () 
   try {
     await headingIs(page, "¡Bienvenido a FlowDesk Pro!");
     const [seen] = await page.evaluate(calls("mark_features_seen"));
-    assert.equal(Object.keys(seen.features).length, 13, "presenta las 13 funciones disponibles");
+    assert.equal(Object.keys(seen.features).length, 14, "presenta las 14 funciones disponibles");
     assert.ok(!("local-ai" in seen.features));
 
     await page.click("Comenzar recorrido");
     await headingIs(page, "Inicio");
-    assert.match(await page.evaluate(text), /Paso 1 de 14/);
+    assert.match(await page.evaluate(text), /Paso 1 de 15/);
     await page.key("ArrowRight");
     await headingIs(page, "Paleta de comandos");
     assert.equal((await page.evaluate(calls("record_onboarding_step"))).at(-1).stepId, "feature:command-palette");
     assert.equal(await page.evaluate("document.activeElement?.hasAttribute('data-step-heading')"), true, "el foco va al título para VoiceOver");
     await page.key("ArrowLeft");
     await headingIs(page, "Inicio");
-    await page.click("Ir al paso 14: Todo listo");
+    await page.click("Ir al paso 15: Todo listo");
     await headingIs(page, "¡Todo listo!");
     await page.click("Comenzar a trabajar");
     await page.waitFor(`${calls("close_onboarding")}.length === 1`);
@@ -148,14 +148,14 @@ test("las novedades muestran solo lo nuevo o mejorado y se marcan como vistas", 
   try {
     await headingIs(page, "¡FlowDesk Pro tiene novedades!");
     const body = await page.evaluate(text);
-    for (const title of ["Agenda y recordatorios", "Espacios de trabajo", "Historial del portapapeles", "Paleta de comandos", "Papelera", "Docencia"]) assert.ok(body.includes(title));
-    assert.equal((body.match(/Nuevo\b/g) ?? []).length, 6);
+    for (const title of ["Agenda y recordatorios", "Espacios de trabajo", "Historial del portapapeles", "Paleta de comandos", "Papelera", "Docencia", "Copias de seguridad"]) assert.ok(body.includes(title));
+    assert.equal((body.match(/Nuevo\b/g) ?? []).length, 7);
     assert.equal((body.match(/Mejorado/g) ?? []).length, 5);
     assert.ok(!body.includes("Proyectos\nMejorado"), "Proyectos no cambió");
     assert.equal((await page.evaluate(calls("record_onboarding_event")))[0].event, "whats_new_shown");
     assert.equal((await page.evaluate(calls("mark_features_seen"))).length, 1);
     await page.click("Ver novedades");
-    await page.waitFor(`${text}.includes("Novedad 1 de 12")`);
+    await page.waitFor(`${text}.includes("Novedad 1 de 13")`);
   } finally {
     await page.close();
   }
@@ -540,7 +540,7 @@ test("Docencia: el horario añade clases con los datos de la materia y crea las 
     );
     await page.click("Crear sesiones de asistencia");
     assert.deepEqual(await page.evaluate(calls("teaching_generate_sessions")), [{ courseId: 1 }]);
-    await page.waitFor(`${text}.includes("30 sesiones nuevas")`);
+    await page.waitFor(`${text}.includes("30 nuevas y 1 con su hora")`);
   } finally {
     await page.close();
   }
@@ -647,3 +647,85 @@ test("Docencia: el Resumen muestra el panel y se personaliza", async () => {
   }
 });
 
+
+/** Escribe en un campo controlado por React (input o textarea). */
+const typeInto = (selector, value) => `(() => {
+  const element = document.querySelector(${JSON.stringify(selector)});
+  const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, ${JSON.stringify(value)});
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+})()`;
+
+test("Docencia: el plan del curso muestra el avance, prepara la clase y reparte el temario", async () => {
+  const page = await open("target=teaching&state=seen&tab=syllabus", { width: 1180, height: 760 });
+  try {
+    await page.waitFor(`${text}.includes("Vamos en el tema 7 de 15")`);
+    const body = await page.evaluate(text);
+    assert.ok(body.includes("1 tema atrasado"));
+    assert.ok(body.includes("Clase 7 · jue, 22 oct"), "cada tema muestra su clase");
+    assert.equal(await page.evaluate("document.querySelectorAll('.topic-row.done').length"), 6);
+
+    await page.click("Preparar clase");
+    assert.deepEqual(await page.evaluate(calls("teaching_prepare_topic")), [{ topicId: 7 }]);
+
+    // Marcar como dado el tema 8 desde su casilla.
+    await page.clickSelector(".topic-row:nth-child(8) .topic-check");
+    assert.deepEqual(await page.evaluate(calls("teaching_set_topic_done")), [{ topicId: 8, done: true }]);
+
+    await page.click("Pegar temario");
+    await page.waitFor(`${text}.includes("Un tema por línea")`);
+    await page.evaluate(typeInto(".modal-card textarea", "Semana 15: Repaso\n- Examen final"));
+    await page.click("Añadir 2 temas");
+    assert.deepEqual(await page.evaluate(calls("teaching_add_topics")), [{ courseId: 1, text: "Semana 15: Repaso\n- Examen final" }]);
+
+    await page.click("Repartir en las clases");
+    await page.waitFor(`${text}.includes("Repartir los que faltan")`);
+    await page.click("Repartir los que faltan");
+    assert.deepEqual(await page.evaluate(calls("teaching_distribute_topics")), [{ courseId: 1, reset: false }]);
+    await page.waitFor(`${text}.includes("2 temas asignados a sus clases")`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("Docencia: el calendario académico carga los feriados y quita esas clases", async () => {
+  const page = await open("target=teaching&state=seen&tab=schedule", { width: 1180, height: 760 });
+  try {
+    await page.waitFor(`${text}.includes("Feriados y días sin clases") && ${text}.includes("Primer Grito de Independencia")`);
+    const body = await page.evaluate(text);
+    assert.ok(body.includes("Feriado · sin clases · Panamá"));
+    assert.ok(body.includes("Exámenes finales del II semestre"));
+    await page.click("Actualizar feriados y UTP");
+    assert.equal((await page.evaluate(calls("teaching_load_official_calendar"))).length, 1);
+    await page.waitFor(`${text}.includes("29 días nuevos") && ${text}.includes("Se quitaron 4 sesiones vacías")`);
+    // Crear las sesiones avisa de los días sin clases que se omiten.
+    await page.click("Crear sesiones de asistencia");
+    await page.waitFor(`${text}.includes("6 días sin clases se omiten")`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("Configuración: copias de seguridad en una carpeta propia y restaurar con un clic", async () => {
+  const page = await open("target=dashboard&state=seen&settings=1", { width: 1180, height: 760 });
+  try {
+    await page.waitFor(`${text}.includes("Copias de seguridad") && ${text}.includes("iCloud Drive › Copias FlowDesk")`);
+    assert.ok((await page.evaluate(text)).includes("Las últimas 30"));
+    await page.click("Hacer copia ahora");
+    assert.equal((await page.evaluate(calls("backup_now"))).length, 1);
+
+    // Cancelar la confirmación no restaura nada; aceptarla restaura y reinicia.
+    await page.evaluate("window.confirm = () => false");
+    await page.click("Restaurar");
+    assert.equal((await page.evaluate(calls("restore_backup"))).length, 0);
+    await page.evaluate("window.confirm = () => true");
+    await page.click("Restaurar");
+    await page.waitFor(`window.__flowdeskCalls.some((call) => call.command === "plugin:process|restart")`);
+    const [{ path }] = await page.evaluate(calls("restore_backup"));
+    assert.match(path, /FlowDesk-2026-10-26-080500\.sqlite3$/);
+    const order = await page.evaluate("window.__flowdeskCalls.map((call) => call.command).filter((command) => ['restore_backup', 'prepare_restart', 'plugin:process|restart'].includes(command))");
+    assert.deepEqual(order, ["restore_backup", "prepare_restart", "plugin:process|restart"]);
+  } finally {
+    await page.close();
+  }
+});

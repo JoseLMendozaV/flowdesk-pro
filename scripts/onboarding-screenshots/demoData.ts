@@ -321,5 +321,5 @@ export const shortcuts = [
 export const capabilities = [
   "dashboard", "tasks", "projects", "notes", "global-shortcuts", "pomodoro", "time-tracking",
   "app-tracking", "calendar", "reminders", "workspaces", "clipboard", "menu-bar", "updates",
-  "recurrence", "trash", "command-palette", "teaching",
+  "recurrence", "trash", "command-palette", "teaching", "backups",
 ];

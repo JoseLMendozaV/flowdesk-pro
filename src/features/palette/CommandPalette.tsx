@@ -143,6 +143,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
         },
       },
       { id: "settings", group: "Acciones", label: "Configuración", icon: Settings, keywords: "preferencias ajustes", run: openPreferences },
+      { id: "backups", group: "Acciones", label: "Copias de seguridad", icon: Settings, keywords: "respaldo backup restaurar icloud", run: openPreferences },
       { id: "tour", group: "Acciones", label: "Recorrido por FlowDesk", icon: CircleHelp, keywords: "ayuda guía", run: () => flowdeskApi.openOnboarding("tour") },
     ];
     const sections: Command[] = [
@@ -165,6 +166,17 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
         keywords: "docencia materias semana",
         run: () => {
           setTeachingTab("schedule");
+          selectSection("teaching");
+        },
+      },
+      {
+        id: "go-syllabus",
+        group: "Ir a",
+        label: "Plan del curso",
+        icon: GraduationCap,
+        keywords: "docencia temario temas syllabus preparar clase",
+        run: () => {
+          setTeachingTab("syllabus");
           selectSection("teaching");
         },
       },

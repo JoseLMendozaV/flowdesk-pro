@@ -36,6 +36,10 @@ Tareas, proyectos y eventos pasan antes por la papelera (`commands/trash.rs`). S
 
 `src-tauri/src/teaching/` contiene la gestión académica traída de Control Docente: sus tablas (identificadores enteros) viven en la misma base, sus comandos llevan el prefijo `teaching_` y usan la conexión con `Database::lock()`. `sync.rs` refleja cada materia como proyecto, el horario y las entregas como eventos (`source = 'teaching'`) y los seguimientos como tareas, dentro de la transacción de cada comando; los disparadores de la migración 13 limpian lo reflejado. La interfaz (`src/features/teaching/`) se carga solo al abrir Docencia y su CSS está limitado a `.teaching`. Detalles en `docs/DOCENCIA.md`.
 
+`academic.rs` guarda el calendario académico. Los días sin clases se aplican como excepciones de las franjas (aparte de las manuales, en `skipped_occurrences`) y quitan las sesiones vacías. `syllabus.rs` lleva el plan del curso: crea la nota de preparación con `notes::insert_prepared_note` dentro de la transacción y abre su ventana después con `notes::present_note`, ya sin el bloqueo de la base. Detalles en `docs/MEJORAS_0.9.md`.
+
+`src-tauri/src/backup.rs` hace las copias de seguridad diarias en la carpeta elegida, con su propio hilo (`flowdesk-backups`) y su configuración en `backups.json`. Restaurar deja `restore-pending.sqlite3`, y `Database::initialize` lo pone en lugar de la base antes de abrirla (`apply_pending`). Tras las migraciones, devuelve los adjuntos que trae la copia (`finish_restore`).
+
 ### Repeticiones
 
 Tareas y eventos guardan su regla como JSON validado en `recurrence.rs`, con fechas en hora local de pared. Una tarea repetida es una fila por repetición: al completarla se crea la siguiente. Un evento repetido es una sola fila con excepciones, y `list_calendar` la expande en Rust para el rango pedido. El servicio de recordatorios calcula en Rust el aviso de la próxima repetición y lo reconcilia con los demás en SQL.

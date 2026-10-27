@@ -24,6 +24,7 @@ const featureShots = {
   "command-palette": { query: "target=dashboard&palette=1", ...WINDOW },
   trash: { query: "target=trash", ...WINDOW },
   teaching: { query: "target=teaching&tab=schedule", ...WINDOW },
+  backups: { query: "target=dashboard&state=seen&settings=1&scroll=settings-backups", ...WINDOW, wait: 1200 },
   "menu-bar": { query: "target=tray", ...TRAY },
 };
 
@@ -49,10 +50,10 @@ const only = args.filter((arg, index) => !arg.startsWith("--") && (previewIndex 
 const selected = Object.entries(shots).filter(([id]) => only.length === 0 || only.includes(id));
 
 await withHarness(async ({ open }) => {
-  for (const [id, { query, ...options }] of selected) {
+  for (const [id, { query, wait = 400, ...options }] of selected) {
     for (const scheme of ["light", "dark"]) {
       const page = await open(query, { ...options, scheme });
-      await delay(400);
+      await delay(wait);
       const image = await page.screenshot();
       await page.close();
       const destination = previewDir ? path.join(previewDir, `${id}-${scheme}.webp`) : path.join(assets, id, `${id}-${scheme}.webp`);

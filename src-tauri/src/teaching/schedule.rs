@@ -1,6 +1,7 @@
 //! Horario semanal de las materias y sesiones de asistencia generadas a partir de él.
 
 use super::{
+    academic::DaysOff,
     error::{AppError, AppResult},
     models::{GenerateSessionsResult, ScheduleSlot, ScheduleSlotInput, TimeBlocks},
     sync::{self, first_weekday, parse_time},
@@ -143,15 +144,13 @@ pub fn save_slot(connection: &mut Connection, input: &ScheduleSlotInput) -> AppR
     Ok(id)
 }
 
-/// Crea una sesión por cada día de clase del horario que aún no la tenga, numeradas a
-/// continuación de las existentes, y pone hora a las sesiones de esos días que no la tenían.
-/// No toca la asistencia ya registrada.
-pub fn generate_sessions(
-    connection: &mut Connection,
+/// Días de clase del horario de la materia, de la primera hora a la última de cada día (un
+/// día con teoría y laboratorio es una sola sesión).
+fn scheduled_days(
+    connection: &Connection,
     course_id: i64,
-) -> AppResult<GenerateSessionsResult> {
-    let transaction = connection.transaction()?;
-    let slots: Vec<(u32, String, String, String, String)> = transaction
+) -> AppResult<Vec<(NaiveDate, String, String)>> {
+    let slots: Vec<(u32, String, String, String, String)> = connection
         .prepare(
             "SELECT weekday, start_time, end_time, starts_on, ends_on FROM course_schedule
              WHERE course_id = ?1",
@@ -166,11 +165,6 @@ pub fn generate_sessions(
             ))
         })?
         .collect::<Result<_, _>>()?;
-    if slots.is_empty() {
-        return Err(AppError::Validation(
-            "Esta materia aún no tiene horario. Añade sus clases en Horario.".into(),
-        ));
-    }
     let mut days: Vec<(NaiveDate, String, String)> = Vec::new();
     for (weekday, start, end, from, until) in slots {
         let (Ok(from), Ok(until)) = (
@@ -185,7 +179,6 @@ pub fn generate_sessions(
             day += chrono::TimeDelta::days(7);
         }
     }
-    // Un día con teoría y laboratorio es una sola sesión, de la primera hora a la última.
     days.sort();
     let mut merged: Vec<(NaiveDate, String, String)> = Vec::new();
     for (day, start, end) in days {
@@ -198,16 +191,37 @@ pub fn generate_sessions(
             _ => merged.push((day, start, end)),
         }
     }
-    let days = merged;
-    let mut next: i64 = transaction.query_row(
+    Ok(merged)
+}
+
+/// Crea las sesiones que faltan en los días de clase (dentro de `window`, si se da) que el
+/// calendario académico no marca como libres, y pone hora a las que no la tenían.
+fn fill_sessions(
+    connection: &Connection,
+    course_id: i64,
+    window: Option<(NaiveDate, NaiveDate)>,
+) -> AppResult<GenerateSessionsResult> {
+    let days_off = DaysOff::load(connection)?;
+    let mut next: i64 = connection.query_row(
         "SELECT COALESCE(MAX(number), 0) + 1 FROM class_sessions WHERE course_id = ?1",
         [course_id],
         |row| row.get(0),
     )?;
-    let (mut created, mut updated) = (0_i64, 0_i64);
-    for (day, start, end) in days {
+    let mut result = GenerateSessionsResult {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+    };
+    for (day, start, end) in scheduled_days(connection, course_id)? {
+        if window.is_some_and(|(from, until)| day < from || day > until) {
+            continue;
+        }
+        if days_off.contains(day) {
+            result.skipped += 1;
+            continue;
+        }
         let date = day.format("%Y-%m-%d").to_string();
-        let existing: Option<(i64, Option<String>)> = transaction
+        let existing: Option<(i64, Option<String>)> = connection
             .query_row(
                 "SELECT id, start_time FROM class_sessions WHERE course_id = ?1 AND date = ?2
                  ORDER BY number LIMIT 1",
@@ -217,44 +231,133 @@ pub fn generate_sessions(
             .optional()?;
         match existing {
             Some((id, time)) if time.as_deref().is_none_or(|value| value.trim().is_empty()) => {
-                transaction.execute(
+                connection.execute(
                     "UPDATE class_sessions SET start_time = ?1, end_time = ?2 WHERE id = ?3",
                     params![start, end, id],
                 )?;
-                updated += 1;
+                result.updated += 1;
             }
             Some(_) => {}
             None => {
-                transaction.execute(
+                connection.execute(
                     "INSERT INTO class_sessions(course_id, number, title, date, start_time, end_time)
                      VALUES (?1, ?2, '', ?3, ?4, ?5)",
                     params![course_id, next, date, start, end],
                 )?;
                 next += 1;
-                created += 1;
+                result.created += 1;
             }
         }
     }
-    // Las sesiones se muestran por número: se renumeran por fecha para que el orden sea el real.
-    let ordered: Vec<i64> = transaction
+    Ok(result)
+}
+
+/// Las sesiones se muestran por número: se renumeran por fecha para que el orden sea el real.
+pub fn renumber_sessions(connection: &Connection, course_id: i64) -> AppResult<()> {
+    let ordered: Vec<i64> = connection
         .prepare(
             "SELECT id FROM class_sessions WHERE course_id = ?1
              ORDER BY date IS NULL, date, number",
         )?
         .query_map([course_id], |row| row.get(0))?
         .collect::<Result<_, _>>()?;
-    transaction.execute(
+    connection.execute(
         "UPDATE class_sessions SET number = -number WHERE course_id = ?1",
         [course_id],
     )?;
     for (index, id) in ordered.iter().enumerate() {
-        transaction.execute(
+        connection.execute(
             "UPDATE class_sessions SET number = ?1 WHERE id = ?2",
             params![index as i64 + 1, id],
         )?;
     }
+    Ok(())
+}
+
+/// Crea una sesión por cada día de clase del horario que aún no la tenga (salvo los días
+/// libres del calendario académico), numeradas por fecha, y pone hora a las sesiones de
+/// esos días que no la tenían. No toca la asistencia ya registrada.
+pub fn generate_sessions(
+    connection: &mut Connection,
+    course_id: i64,
+) -> AppResult<GenerateSessionsResult> {
+    let transaction = connection.transaction()?;
+    let has_slots: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM course_schedule WHERE course_id = ?1)",
+        [course_id],
+        |row| row.get(0),
+    )?;
+    if !has_slots {
+        return Err(AppError::Validation(
+            "Esta materia aún no tiene horario. Añade sus clases en Horario.".into(),
+        ));
+    }
+    let result = fill_sessions(&transaction, course_id, None)?;
+    renumber_sessions(&transaction, course_id)?;
     transaction.commit()?;
-    Ok(GenerateSessionsResult { created, updated })
+    Ok(result)
+}
+
+/// Quita las sesiones de días sin clases que no se dieron ni tienen asistencia marcada.
+/// Devuelve cuántas quitó y cuántas conserva por tener datos.
+pub fn remove_sessions_on_days_off(
+    connection: &Connection,
+    course_id: i64,
+    days_off: &DaysOff,
+) -> AppResult<(i64, i64)> {
+    let sessions: Vec<(i64, String, bool)> = connection
+        .prepare(
+            "SELECT s.id, s.date,
+                    s.is_held = 1 OR EXISTS(SELECT 1 FROM attendance_records r
+                                           WHERE r.session_id = s.id AND r.status <> '')
+             FROM class_sessions s WHERE s.course_id = ?1 AND s.date IS NOT NULL",
+        )?
+        .query_map([course_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?
+        .collect::<Result<_, _>>()?;
+    let (mut removed, mut kept) = (0, 0);
+    for (id, date, has_data) in sessions {
+        let Some(day) = date
+            .get(..10)
+            .and_then(|value| NaiveDate::parse_from_str(value, "%Y-%m-%d").ok())
+        else {
+            continue;
+        };
+        if !days_off.contains(day) {
+            continue;
+        }
+        if has_data {
+            kept += 1;
+        } else {
+            connection.execute("DELETE FROM class_sessions WHERE id = ?1", [id])?;
+            removed += 1;
+        }
+    }
+    Ok((removed, kept))
+}
+
+/// Vuelve a crear las sesiones del horario entre esas fechas (días que dejaron de ser
+/// libres), solo si la materia ya usa sesiones. Devuelve cuántas creó.
+pub fn restore_sessions(
+    connection: &Connection,
+    course_id: i64,
+    (from, until): (NaiveDate, NaiveDate),
+) -> AppResult<i64> {
+    let uses_sessions: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM class_sessions WHERE course_id = ?1)
+            AND EXISTS(SELECT 1 FROM course_schedule WHERE course_id = ?1)",
+        [course_id],
+        |row| row.get(0),
+    )?;
+    if !uses_sessions {
+        return Ok(0);
+    }
+    let created = fill_sessions(connection, course_id, Some((from, until)))?.created;
+    if created > 0 {
+        renumber_sessions(connection, course_id)?;
+    }
+    Ok(created)
 }
 
 pub fn load_blocks(connection: &Connection) -> AppResult<TimeBlocks> {
