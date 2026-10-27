@@ -350,9 +350,10 @@ export const FEATURES: FeatureDefinition[] = [
     category: "organization",
     phase: 7,
     introducedInVersion: "0.8.0",
-    revision: 2,
+    revision: 3,
     updates: [
       { revision: 2, version: "0.8.1", summary: "Asistencia: «Marcar a todos» en cada clase (presentes, ausentes, justificados, tardanza o solo los que faltan)." },
+      { revision: 3, version: "0.8.2", summary: "Resumen convertido en panel: notas, asistencia clase a clase, evaluaciones, estudiantes en riesgo y próximas clases, eligiendo qué paneles ver." },
     ],
     implemented: true,
     verified: true,
@@ -365,6 +366,7 @@ export const FEATURES: FeatureDefinition[] = [
     highlights: [
       "Horario semanal por bloques, como la hoja oficial, con teoría y laboratorio: tus clases aparecen cada semana en el calendario, con aviso y en la barra de menús.",
       "Estudiantes (también desde Excel), equipos, asistencia por sesión con «Marcar a todos» y libro de notas individual o por equipos.",
+      "Resumen personalizable: cifras clave, asistencia por clase, distribución de notas, promedio por evaluación y estudiantes en riesgo.",
       "Evaluaciones con rúbricas, recuperaciones, observaciones y analítica con alertas tempranas.",
       "Las entregas y la planificación van al calendario; los seguimientos con fecha son tareas.",
       "Cada materia tiene su proyecto para tareas, notas y tiempo.",

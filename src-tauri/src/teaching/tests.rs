@@ -782,3 +782,136 @@ fn recording_attendance_marks_the_class_as_held() {
     }];
     assert!(store_attendance(&mut database.lock().expect("lock"), &invalid).is_err());
 }
+
+#[test]
+fn the_overview_summarises_grades_attendance_and_the_agenda() {
+    use super::overview::{WIDGETS, build_overview, load_layout, store_layout};
+    let database = Database::in_memory();
+    let course_id = course(&database, "Desarrollo de Software V", "2GS221");
+    execute(
+        &database,
+        &format!(
+            "INSERT INTO students(id, identification, name) VALUES (1, '1', 'Ana'), (2, '2', 'Bruno'), (3, '3', 'Carla');
+             INSERT INTO enrollments(id, course_id, student_id) VALUES (1, {course_id}, 1), (2, {course_id}, 2), (3, {course_id}, 3);
+             INSERT INTO class_sessions(id, course_id, number, date, is_held) VALUES
+                (1, {course_id}, 1, '2026-08-05', 1), (2, {course_id}, 2, '2026-08-07', 1), (3, {course_id}, 3, '2026-08-12', 0);
+             INSERT INTO attendance_records(enrollment_id, session_id, status) VALUES
+                (1, 1, 'P'), (2, 1, 'A'), (3, 1, 'T'), (1, 2, 'P'), (2, 2, 'A'), (3, 2, 'J');
+             INSERT INTO evaluations(id, course_id, name, weight, max_score, due_date) VALUES
+                (1, {course_id}, 'Taller', 40, 100, NULL), (2, {course_id}, 'Parcial', 60, 50, '2099-01-10T19:30');
+             INSERT INTO grades(enrollment_id, evaluation_id, score) VALUES (1, 1, 95), (1, 2, 46), (2, 1, 40);"
+        ),
+    );
+    let now = local(2026, 8, 20, 12, 0);
+    let overview =
+        build_overview(&database.lock().expect("lock"), course_id, now).expect("overview");
+
+    // Ana: (0.95·40 + 0.92·60) / 100 = 93,2 y asistencia 100 %; Bruno: 40 y 0 %; Carla sin notas.
+    let ana = &overview.students[0];
+    assert_eq!(ana.name, "Ana");
+    assert!((ana.grade.expect("grade") - 93.2).abs() < 1e-9);
+    assert_eq!((ana.attendance, ana.status.as_str()), (100.0, "approved"));
+    let bruno = &overview.students[1];
+    assert_eq!(
+        (bruno.grade, bruno.attendance, bruno.absences),
+        (Some(40.0), 0.0, 2)
+    );
+    assert_eq!(bruno.status, "at_risk");
+    assert_eq!(bruno.reasons, ["nota baja", "asistencia baja"]);
+    assert_eq!(
+        (
+            overview.students[2].status.as_str(),
+            overview.students[2].grade
+        ),
+        ("ungraded", None)
+    );
+
+    assert_eq!(
+        (
+            overview.stats.approved,
+            overview.stats.at_risk,
+            overview.stats.ungraded
+        ),
+        (1, 1, 1)
+    );
+    assert_eq!(
+        (overview.stats.held_sessions, overview.stats.total_sessions),
+        (2, 3)
+    );
+    // Solo las clases realizadas, con P, T y J contando como asistencia.
+    let rates: Vec<_> = overview
+        .sessions
+        .iter()
+        .map(|session| session.rate.round() as i64)
+        .collect();
+    assert_eq!(rates, [67, 67]);
+    assert_eq!(overview.sessions[0].late, 1);
+    let bands: Vec<_> = overview
+        .grade_bands
+        .iter()
+        .map(|band| band.value as i64)
+        .collect();
+    assert_eq!(bands, [1, 0, 0, 1]);
+    // Promedio del parcial: 46/50 = 92 %, calificado 1 de 3.
+    let parcial = &overview.evaluations[1];
+    assert_eq!(
+        (parcial.average, parcial.graded, parcial.total),
+        (Some(92.0), 1, 3)
+    );
+    // La entrega de 2099 queda fuera de las próximas tres semanas.
+    assert!(overview.agenda.is_empty());
+
+    // Los paneles: todos por defecto; se guardan el orden y la visibilidad, y se rechazan los desconocidos.
+    let connection = database.lock().expect("lock");
+    let mut layout = load_layout(&connection).expect("layout");
+    assert_eq!(layout.widgets.len(), WIDGETS.len());
+    layout.widgets.reverse();
+    layout.widgets[0].visible = false;
+    let saved = store_layout(&connection, &layout).expect("store");
+    assert_eq!(saved.widgets[0].id, "quick-actions");
+    assert!(!saved.widgets[0].visible);
+    layout.widgets[0].id = "otro".to_string();
+    assert!(store_layout(&connection, &layout).is_err());
+}
+
+/// Resumen de cada materia sobre una copia real de la base de FlowDesk indicada en
+/// `FLOWDESK_DB` (`cargo test real_flowdesk_database -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn computes_the_overview_for_a_real_flowdesk_database() {
+    let Ok(path) = std::env::var("FLOWDESK_DB") else {
+        return;
+    };
+    let connection = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .expect("copy");
+    let ids: Vec<i64> = connection
+        .prepare("SELECT id FROM courses ORDER BY id")
+        .expect("courses")
+        .query_map([], |row| row.get(0))
+        .expect("rows")
+        .collect::<Result<_, _>>()
+        .expect("ids");
+    for id in ids {
+        let overview =
+            super::overview::build_overview(&connection, id, chrono::Local::now().timestamp())
+                .expect("overview");
+        println!(
+            "{}: {} estudiantes, asistencia {:.1} %, promedio {:?}, aprobando {}, en riesgo {}, sin notas {}, clases realizadas {}/{}, evaluaciones {}, próximas clases {}, agenda {}",
+            overview.course.title,
+            overview.stats.active_students,
+            overview.stats.attendance_average,
+            overview
+                .stats
+                .grade_average
+                .map(|value| (value * 10.0).round() / 10.0),
+            overview.stats.approved,
+            overview.stats.at_risk,
+            overview.stats.ungraded,
+            overview.stats.held_sessions,
+            overview.stats.total_sessions,
+            overview.evaluations.len(),
+            overview.next_classes.len(),
+            overview.agenda.len(),
+        );
+    }
+}

@@ -39,46 +39,6 @@ pub struct CourseInput {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Dashboard {
-    pub course: CourseSummary,
-    pub stats: DashboardStats,
-    pub attention: Vec<AttentionStudent>,
-    pub upcoming_events: Vec<UpcomingEvent>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DashboardStats {
-    pub active_students: i64,
-    pub attendance_average: f64,
-    pub grade_average: Option<f64>,
-    pub configured_weight: f64,
-    pub held_sessions: i64,
-    pub active_evaluations: i64,
-    pub student_groups: i64,
-    pub group_evaluations: i64,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AttentionStudent {
-    pub enrollment_id: i64,
-    pub name: String,
-    pub identification: String,
-    pub attendance: f64,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpcomingEvent {
-    pub id: i64,
-    pub title: String,
-    pub event_type: String,
-    pub starts_at: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StudentRow {
     pub enrollment_id: i64,
     pub student_id: i64,
@@ -647,4 +607,123 @@ impl Default for TimeBlocks {
             count: 19,
         }
     }
+}
+
+/// Reglas de la materia que usa el Resumen.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverviewRules {
+    pub passing_grade: f64,
+    pub attendance_minimum: f64,
+    pub low_grade_alert: f64,
+    pub low_attendance_alert: f64,
+    pub promotion_requires_attendance: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverviewStats {
+    pub active_students: i64,
+    pub attendance_average: f64,
+    pub grade_average: Option<f64>,
+    pub configured_weight: f64,
+    pub held_sessions: i64,
+    pub total_sessions: i64,
+    pub active_evaluations: i64,
+    pub student_groups: i64,
+    pub approved: i64,
+    pub at_risk: i64,
+    pub ungraded: i64,
+}
+
+/// Cómo va un estudiante: nota ponderada (0–100) sobre lo evaluado y asistencia sobre las
+/// clases realizadas. `status`: `approved`, `at_risk` o `ungraded`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudentOverview {
+    pub enrollment_id: i64,
+    pub name: String,
+    pub identification: String,
+    pub group_name: Option<String>,
+    pub grade: Option<f64>,
+    pub attendance: f64,
+    pub absences: i64,
+    pub status: String,
+    pub reasons: Vec<String>,
+}
+
+/// Asistencia de una clase realizada; `rate` cuenta P, T y J sobre los estudiantes activos.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAttendance {
+    pub session_id: i64,
+    pub number: i64,
+    pub date: Option<String>,
+    pub present: i64,
+    pub late: i64,
+    pub excused: i64,
+    pub absent: i64,
+    pub unmarked: i64,
+    pub rate: f64,
+}
+
+/// Promedio de una evaluación en porcentaje de su puntaje máximo.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluationAverage {
+    pub id: i64,
+    pub name: String,
+    pub weight: f64,
+    pub max_score: f64,
+    pub due_date: Option<String>,
+    pub average: Option<f64>,
+    pub graded: i64,
+    pub total: i64,
+}
+
+/// Entrega (`delivery`) o evento de la planificación (su tipo) en los próximos días.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpcomingItem {
+    pub title: String,
+    pub kind: String,
+    pub starts_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NextClass {
+    pub starts_at: i64,
+    pub ends_at: i64,
+    pub kind: String,
+    pub room: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CourseOverview {
+    pub course: CourseSummary,
+    pub rules: OverviewRules,
+    pub stats: OverviewStats,
+    pub students: Vec<StudentOverview>,
+    pub grade_bands: Vec<ChartValue>,
+    pub sessions: Vec<SessionAttendance>,
+    pub evaluations: Vec<EvaluationAverage>,
+    pub groups: Vec<ChartValue>,
+    pub agenda: Vec<UpcomingItem>,
+    pub next_classes: Vec<NextClass>,
+}
+
+/// Paneles del Resumen en el orden elegido, y si se muestran.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverviewWidget {
+    pub id: String,
+    pub visible: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverviewLayout {
+    pub widgets: Vec<OverviewWidget>,
 }

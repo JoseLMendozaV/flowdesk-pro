@@ -609,3 +609,41 @@ test("Docencia: «Marcar a todos» marca la clase entera y espera a guardar", as
   }
 });
 
+test("Docencia: el Resumen muestra el panel y se personaliza", async () => {
+  const page = await open("target=teaching&state=seen&tab=dashboard", { width: 1180, height: 760 });
+  try {
+    await page.waitFor(`${text}.includes("Asistencia por clase") && ${text}.includes("Requieren atención")`);
+    const body = await page.evaluate(text);
+    assert.ok(!body.includes("Error de base de datos"));
+    for (const title of ["Cifras clave", "Distribución de notas", "Promedio por evaluación", "Estudiantes", "Próximas clases y entregas"]) {
+      assert.ok(await page.evaluate(`Boolean(document.querySelector('section[aria-label="${title}"]'))`), title);
+    }
+    // «Requieren atención» lista a los estudiantes en riesgo con el motivo.
+    assert.match(
+      await page.evaluate(`document.querySelector('section[aria-label="Requieren atención"]').textContent`),
+      /Fabián Ríos.*asistencia baja/,
+    );
+    // Cada clase realizada tiene su barra con el detalle en el tooltip.
+    assert.equal(await page.evaluate("document.querySelectorAll('.column').length"), 13);
+    await page.evaluate("document.querySelector('.column').dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))");
+    await page.waitFor(`Boolean(document.querySelector('.chart-tip'))`);
+    assert.match(await page.evaluate("document.querySelector('.chart-tip').textContent"), /Clase 1/);
+
+    await page.click("Personalizar");
+    await page.waitFor(`${text}.includes("Personalizar el resumen")`);
+    await page.evaluate(`(() => {
+      const row = [...document.querySelectorAll('.customize-list li')].find((item) => item.textContent.includes('Accesos rápidos'));
+      row.querySelector('input').click();
+      document.querySelector('[aria-label="Subir Estudiantes"]').click();
+    })()`);
+    await page.click("Guardar");
+    const [{ layout }] = await page.evaluate(calls("teaching_save_overview_layout"));
+    assert.equal(layout.widgets.find((widget) => widget.id === "quick-actions").visible, false);
+    const order = layout.widgets.map((widget) => widget.id);
+    assert.ok(order.indexOf("students") < order.indexOf("evaluations"), "Estudiantes subió");
+    await page.waitFor(`!document.querySelector('section[aria-label="Accesos rápidos"]')`);
+  } finally {
+    await page.close();
+  }
+});
+

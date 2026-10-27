@@ -7,7 +7,7 @@ La app de escritorio **Control Docente** (Tauri, Rust, React y SQLite, unas 6 40
 ## Qué incluye
 
 **Lo que ya hacía Control Docente:**
-- **Resumen** del curso y alertas.
+- **Resumen** de la materia, convertido en panel en la 0.8.2 (ver más abajo).
 - **Estudiantes:** altas, edición, activación, importación desde Excel y expediente con notas, asistencia, observaciones, compromisos y recuperaciones.
 - **Equipos**, con integrantes y líderes.
 - **Asistencia** por sesión (presente, ausente, justificada, tardanza).
@@ -24,6 +24,25 @@ La app de escritorio **Control Docente** (Tauri, Rust, React y SQLite, unas 6 40
   - **Vista «Horas»:** la semana a escala real.
   - **Elegir por bloques:** «Desde el bloque» y «Hasta el bloque». También se puede poner otra hora a mano.
 - **Bloques horarios** (Ajustes): primer bloque, duración, descanso y cantidad. Por defecto, los de la UTP: 19 bloques de 45 minutos con 5 de descanso, de 7:00 a 22:45. Se guardan en `settings.teaching_time_blocks`.
+- **Resumen como panel** (0.8.2). Paneles disponibles:
+  - **Cifras clave:** estudiantes, asistencia y promedio con su mínimo, y cuántos van aprobando, en riesgo o sin notas.
+  - **Requieren atención:** cada estudiante con su motivo; un clic abre el expediente.
+  - **Próximas clases y entregas:** las clases salen del horario (sin festivos) y las entregas y eventos de los próximos 21 días.
+  - **Asistencia por clase:** una barra por clase realizada, con la línea del mínimo y un aviso de las clases con estudiantes sin marcar, que cuentan como ausentes.
+  - **Distribución de notas.**
+  - **Promedio por evaluación**, con cuántos están calificados.
+  - **Estudiantes:** nota, asistencia, ausencias y estado, ordenables.
+  - **Rendimiento por equipo.**
+  - **Accesos rápidos.**
+
+  «Personalizar» elige qué paneles ver y en qué orden. Vale para todas las materias y se guarda en `settings.teaching_overview_layout`.
+
+  Los gráficos siguen las pautas de visualización de FlowDesk:
+  - un solo color validado (`--series-1`) y estado siempre con icono y texto;
+  - descripción emergente en cada barra, también con el teclado;
+  - todas las cifras están en la tabla.
+
+  Corrige el error «no such table: preferences»: el resumen antiguo intentaba guardar la materia elegida en una tabla de Control Docente que FlowDesk no usa.
 - **Marcar a todos** (0.8.1): cada clase de Asistencia tiene en su cabecera un menú para poner a todos presentes, ausentes, justificados o con tardanza, poner presentes solo a los que aún no tienen marca, o quitar todas las marcas.
   - Queda pendiente hasta «Guardar cambios», para corregir antes las excepciones.
   - Guardar asistencia en una clase la da por **realizada**. Así cuenta en los promedios, aunque se haya creado desde el horario como «No realizada».
@@ -106,7 +125,7 @@ No se conservan `app_meta` ni `preferences` de Control Docente:
 
 ## Pruebas realizadas
 
-- `npm run test:rust`: **128 pruebas** (más 2 opcionales con datos reales). Las de Docencia:
+- `npm run test:rust`: **129 pruebas** (más 2 opcionales con datos reales). Las de Docencia:
   - Proyecto por materia: se crea, se renombra, se archiva y se recrea si se borró.
   - Horario:
     - clases semanales en el calendario con hora, aula, aviso y proyecto;
@@ -131,17 +150,29 @@ No se conservan `app_meta` ni `preferences` de Control Docente:
   - Teoría y laboratorio el mismo día (horario real de la UTP): dos eventos titulados por tipo y una sola sesión de 14:30 a 16:55.
   - Bloques horarios: por defecto los de la UTP; se guardan y se rechazan los que no caben en el día.
   - Guardar asistencia da la clase por realizada solo si se registró alguna marca.
+  - Resumen:
+    - nota ponderada sobre lo evaluado;
+    - asistencia con P, T y J;
+    - estados y motivos;
+    - asistencia por clase realizada, distribución y promedio por evaluación;
+    - agenda;
+    - paneles guardados, completados y validados.
+  - Con tu base real (prueba opcional sobre una copia): el resumen de tus dos materias se calcula sin errores.
   - Fechas locales y días de la semana.
   - Cálculo de rúbricas (prueba original de Control Docente).
 - **Con tus datos reales** (pruebas opcionales, sobre copias):
   - Control Docente: 2 materias, 45 estudiantes, 45 matrículas, 29 sesiones, 606 registros de asistencia, 13 evaluaciones, 96 notas, 12 equipos y 44 integrantes, idénticos al original, más 2 proyectos y 1 entrega en el calendario.
   - La versión Django: 2 materias, 45 estudiantes, 28 sesiones y 96 notas, sin modificar el `db.sqlite3`.
 - `npm run test:onboarding`: **8 pruebas**, con Docencia en la 0.8.0.
-- `npm run test:onboarding-ui`: **32 flujos** en Chrome sin interfaz. Los 3 nuevos:
+- `npm run test:onboarding-ui`: **33 flujos** en Chrome sin interfaz. Los 3 nuevos:
   - el horario añade una clase con los datos de la materia y crea las sesiones;
   - con asistencia sin guardar, cambiar de pestaña o de sección pide confirmación;
   - una clase de Docencia en el calendario no se edita y lleva a Docencia;
-  - «Marcar a todos» rellena la clase entera (o solo los que faltan) y espera a «Guardar cambios».
+  - «Marcar a todos» rellena la clase entera (o solo los que faltan) y espera a «Guardar cambios»;
+  - el Resumen muestra sus paneles, la descripción emergente de cada clase y se personaliza (ocultar y reordenar).
+- **Copia empaquetada con una copia de tu base real**, con otro identificador. Se abrió Docencia con la API de accesibilidad y se leyó el Resumen de Desarrollo de Software V, sin el error de base de datos:
+  - 20 estudiantes, asistencia del 68,3 % y 15 de 32 clases realizadas;
+  - las próximas clases de tu horario y el resto de los paneles.
 - **Migración 13 sobre una copia de tu base de FlowDesk** (versión 12):
   - `integrity_check = ok` y `foreign_key_check` vacío;
   - tus tareas intactas;

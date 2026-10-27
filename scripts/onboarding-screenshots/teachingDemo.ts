@@ -66,15 +66,80 @@ const schedule = [
   { id: 6, courseId: 2, courseTitle: "Desarrollo de Software V", groupName: "2GS221", color: "#2FB67C", kind: "theory", weekday: 5, startTime: "17:50", endTime: "19:25", room: "2A3", startsOn: "2026-08-03", endsOn: "2026-12-04", reminderMinutes: 10, inCalendar: true },
 ];
 
-const dashboard = {
+const overviewStudents = students.filter((student) => student.status === "active").map((student, index) => {
+  const grade = index === 9 ? null : 58 + ((index * 13) % 40);
+  const attendance = [100, 92, 85, 77, 100, 60, 92, 85, 72, 100, 92][index] ?? 90;
+  const reasons = [grade !== null && grade < 71 ? "nota baja" : null, attendance < 80 ? "asistencia baja" : null].filter(Boolean) as string[];
+  return {
+    enrollmentId: student.enrollmentId,
+    name: student.name,
+    identification: student.identification,
+    groupName: student.groupName,
+    grade,
+    attendance,
+    absences: Math.round(((100 - attendance) / 100) * 13),
+    status: reasons.length ? "at_risk" : grade === null ? "ungraded" : "approved",
+    reasons,
+  };
+});
+
+const overview = {
   course: courses[0],
-  stats: { activeStudents: 11, attendanceAverage: 86.4, gradeAverage: 78.9, configuredWeight: 80, heldSessions: 5, activeEvaluations: 4, studentGroups: 2, groupEvaluations: 1 },
-  attention: [
-    { enrollmentId: 6, name: "Fabián Ríos", identification: "8-935-1265", attendance: 60 },
-    { enrollmentId: 9, name: "Irene Navarro", identification: "8-956-1304", attendance: 72 },
+  rules: { passingGrade: 71, attendanceMinimum: 80, lowGradeAlert: 71, lowAttendanceAlert: 80, promotionRequiresAttendance: true },
+  stats: {
+    activeStudents: 11, attendanceAverage: 86.8, gradeAverage: 78.4, configuredWeight: 80, heldSessions: 13, totalSessions: 32,
+    activeEvaluations: 4, studentGroups: 2,
+    approved: overviewStudents.filter((student) => student.status === "approved").length,
+    atRisk: overviewStudents.filter((student) => student.status === "at_risk").length,
+    ungraded: overviewStudents.filter((student) => student.status === "ungraded").length,
+  },
+  students: overviewStudents,
+  gradeBands: [
+    { label: "Crítico (menos de 60)", value: 1 },
+    { label: "En riesgo", value: 2 },
+    { label: "Satisfactorio", value: 5 },
+    { label: "Excelente (90 o más)", value: 2 },
   ],
-  upcomingEvents: [{ id: 1, title: "Entrega del avance del proyecto", eventType: "delivery", startsAt: "2026-10-29T23:59" }],
+  sessions: Array.from({ length: 13 }, (_, index) => {
+    const rate = [100, 91, 91, 82, 100, 73, 91, 64, 91, 100, 82, 91, 73][index];
+    const attended = Math.round((rate / 100) * 11);
+    return {
+      sessionId: index + 1,
+      number: index + 1,
+      date: `2026-${index < 8 ? "09" : "10"}-${String(((index * 3) % 28) + 1).padStart(2, "0")}`,
+      present: attended - 1,
+      late: 1,
+      excused: 0,
+      absent: 11 - attended - (index === 7 ? 2 : 0),
+      unmarked: index === 7 ? 2 : 0,
+      rate,
+    };
+  }),
+  evaluations: [
+    { id: 1, name: "Taller 1", weight: 15, maxScore: 100, dueDate: "2026-09-24T23:59", average: 84.5, graded: 11, total: 11 },
+    { id: 2, name: "Parcial 1", weight: 25, maxScore: 100, dueDate: "2026-10-08T19:30", average: 71.2, graded: 11, total: 11 },
+    { id: 3, name: "Proyecto integrador", weight: 30, maxScore: 100, dueDate: "2026-11-26", average: 88, graded: 8, total: 11 },
+    { id: 4, name: "Participación", weight: 10, maxScore: 100, dueDate: null, average: null, graded: 0, total: 11 },
+  ],
+  groups: [
+    { label: "Equipo Alfa", value: 84 },
+    { label: "Equipo Beta", value: 77 },
+  ],
+  agenda: [
+    { title: "Entrega del avance del proyecto", kind: "delivery", startsAt: "2026-10-29T23:59" },
+    { title: "Reunión de coordinación", kind: "meeting", startsAt: "2026-11-03T17:00" },
+  ],
+  nextClasses: [
+    { startsAt: Math.floor(new Date(2026, 9, 27, 14, 30).getTime() / 1000), endsAt: Math.floor(new Date(2026, 9, 27, 15, 15).getTime() / 1000), kind: "theory", room: "2D3" },
+    { startsAt: Math.floor(new Date(2026, 9, 27, 15, 20).getTime() / 1000), endsAt: Math.floor(new Date(2026, 9, 27, 16, 55).getTime() / 1000), kind: "lab", room: "2D3" },
+    { startsAt: Math.floor(new Date(2026, 9, 29, 12, 50).getTime() / 1000), endsAt: Math.floor(new Date(2026, 9, 29, 14, 25).getTime() / 1000), kind: "theory", room: "2D3" },
+  ],
 };
+
+let overviewLayout = {
+  widgets: ["kpis", "attention", "agenda", "attendance-trend", "grade-distribution", "evaluations", "students", "groups", "quick-actions"].map((id) => ({ id, visible: true })),
+};
+
 
 const groups = [
   { id: 1, name: "Equipo Alfa", description: "Aplicación de inventarios", leaderName: "Ana Castillo", memberCount: 4, members: students.slice(0, 4).map((student, index) => ({ enrollmentId: student.enrollmentId, name: student.name, identification: student.identification, isLeader: index === 0 })) },
@@ -99,7 +164,9 @@ const analytics = {
 
 export const teachingHandlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   teaching_get_bootstrap: () => bootstrap,
-  teaching_get_dashboard: () => dashboard,
+  teaching_get_overview: () => overview,
+  teaching_get_overview_layout: () => overviewLayout,
+  teaching_save_overview_layout: (args) => (overviewLayout = args.layout as typeof overviewLayout),
   teaching_get_schedule: () => schedule,
   teaching_get_time_blocks: () => ({ first: "07:00", minutes: 45, gap: 5, count: 19 }),
   teaching_get_periods: () => [],

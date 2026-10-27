@@ -10,15 +10,25 @@ export type { AnnouncementRow } from "./bindings/AnnouncementRow";
 export type { AttendanceCell } from "./bindings/AttendanceCell";
 export type { AttendanceMatrix } from "./bindings/AttendanceMatrix";
 export type { AttendanceUpdate } from "./bindings/AttendanceUpdate";
-export type { AttentionStudent } from "./bindings/AttentionStudent";
 export type { Bootstrap } from "./bindings/Bootstrap";
 export type { ChartValue } from "./bindings/ChartValue";
 export type { CourseInput } from "./bindings/CourseInput";
+export type {
+  CourseOverview,
+  EvaluationAverage,
+  NextClass,
+  OverviewLayout,
+  OverviewRules,
+  OverviewStats,
+  OverviewWidgetId,
+  SessionAttendance,
+  StudentOverview,
+  StudentStatus,
+  UpcomingItem,
+} from "./bindings/CourseOverview";
 export type { CourseSettings } from "./bindings/CourseSettings";
 export type { CourseSettingsInput } from "./bindings/CourseSettingsInput";
 export type { CourseSummary } from "./bindings/CourseSummary";
-export type { Dashboard } from "./bindings/Dashboard";
-export type { DashboardStats } from "./bindings/DashboardStats";
 export type { EvaluationColumn } from "./bindings/EvaluationColumn";
 export type { EvaluationInput } from "./bindings/EvaluationInput";
 export type { EvaluationRow } from "./bindings/EvaluationRow";
@@ -53,7 +63,6 @@ export type { StudentGradeRow } from "./bindings/StudentGradeRow";
 export type { StudentInput } from "./bindings/StudentInput";
 export type { StudentProfile } from "./bindings/StudentProfile";
 export type { StudentRow } from "./bindings/StudentRow";
-export type { UpcomingEvent } from "./bindings/UpcomingEvent";
 
 export type Page =
   | "dashboard"

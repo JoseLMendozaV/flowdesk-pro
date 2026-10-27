@@ -6,6 +6,7 @@ pub mod commands;
 pub mod error;
 pub mod legacy;
 pub mod models;
+pub mod overview;
 pub mod schedule;
 pub mod sync;
 #[cfg(test)]

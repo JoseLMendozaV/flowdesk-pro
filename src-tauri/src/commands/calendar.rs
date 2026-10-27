@@ -244,6 +244,40 @@ pub fn events_between(
     Ok(events)
 }
 
+/// Repeticiones de los eventos indicados que se solapan con `[start, end)`.
+pub fn occurrences_of(
+    connection: &Connection,
+    event_ids: &[String],
+    start: i64,
+    end: i64,
+) -> rusqlite::Result<Vec<CalendarEvent>> {
+    let mut found = Vec::new();
+    for id in event_ids {
+        let Some(stored) = query_event(connection, id)? else {
+            continue;
+        };
+        match &stored.event.recurrence {
+            Some(rule) => found.extend(
+                rule.occurrences(
+                    stored.event.starts_at,
+                    stored.event.ends_at - stored.event.starts_at,
+                    &stored.exceptions,
+                    start,
+                    end,
+                )
+                .into_iter()
+                .map(|occurrence| stored.occurrence(occurrence)),
+            ),
+            None if stored.event.starts_at < end && stored.event.ends_at > start => {
+                found.push(stored.event)
+            }
+            None => {}
+        }
+    }
+    sort_events(&mut found);
+    Ok(found)
+}
+
 /// Un evento que empezó hace menos de esto se sigue anunciando («ahora»).
 pub const MEETING_GRACE_SECONDS: i64 = 15 * 60;
 
