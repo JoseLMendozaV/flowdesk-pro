@@ -1,6 +1,6 @@
 [package]
 name = "flowdesk-pro"
-version = "0.9.2"
+version = "0.9.3"
 description = "Productividad local y privada para macOS"
 license = "PolyForm-Noncommercial-1.0.0"
 repository = "https://github.com/JoseLMendozaV/flowdesk-pro"
