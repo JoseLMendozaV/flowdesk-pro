@@ -350,11 +350,13 @@ export const FEATURES: FeatureDefinition[] = [
     category: "organization",
     phase: 7,
     introducedInVersion: "0.8.0",
-    revision: 4,
+    revision: 5,
     updates: [
       { revision: 2, version: "0.8.1", summary: "Asistencia: «Marcar a todos» en cada clase (presentes, ausentes, justificados, tardanza o solo los que faltan)." },
       { revision: 3, version: "0.8.2", summary: "Resumen convertido en panel: notas, asistencia clase a clase, evaluaciones, estudiantes en riesgo y próximas clases, eligiendo qué paneles ver." },
       { revision: 4, version: "0.9.0", summary: "Plan del curso con el avance («tema 7 de 15») y una nota flotante para preparar cada clase, y calendario académico: los feriados de Panamá y los días libres y exámenes de la UTP quitan esas clases del horario y de la asistencia." },
+
+      { revision: 5, version: "0.9.1", summary: "Hoja de notas del proyecto final de la UTP: rellena el formulario oficial con un equipo por hoja, la cédula y la nota redondeada, sin cambiar su formato y revisando antes lo que falta." },
     ],
     implemented: true,
     verified: true,
@@ -373,7 +375,7 @@ export const FEATURES: FeatureDefinition[] = [
       "Evaluaciones con rúbricas, recuperaciones, observaciones y analítica con alertas tempranas.",
       "Las entregas y la planificación van al calendario; los seguimientos con fecha son tareas.",
       "Cada materia tiene su proyecto para tareas, notas y tiempo.",
-      "Informes imprimibles, CSV y Excel, e importación desde Control Docente o su versión Django.",
+      "Informes imprimibles, CSV y Excel, la hoja de notas del proyecto final en el formulario oficial de la UTP, e importación desde Control Docente o su versión Django.",
     ],
     example: "Añade «Desarrollo de Software VIII» los martes y jueves de 19:30 a 22:00 en Horario, y pulsa «Crear sesiones de asistencia»: ya tienes todas las clases del semestre listas para pasar lista.",
     tips: [

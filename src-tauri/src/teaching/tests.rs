@@ -1396,3 +1396,510 @@ fn applies_the_academic_calendar_to_a_real_flowdesk_database_copy() {
         );
     }
 }
+
+/// Plantilla mínima con las etiquetas del formulario de la UTP: «Introducción», una hoja
+/// «GRUPO 1» con valores y una «GRUPO 2» que los copia con fórmulas y va una fila más abajo.
+fn utp_template() -> Vec<u8> {
+    use rust_xlsxwriter::{Format, Workbook};
+    let mut workbook = Workbook::new();
+    let plain = Format::new();
+    let intro = workbook.add_worksheet();
+    intro.set_name("Introducción").unwrap();
+    for (row, label) in [
+        "Nombre del Docente: ",
+        "Grupo:",
+        "Carrera: ",
+        "Asignatura: ",
+        "Código de Asignatura: ",
+        "Código de Horario: ",
+    ]
+    .iter()
+    .enumerate()
+    {
+        intro
+            .merge_range(5 + row as u32, 2, 5 + row as u32, 3, label, &plain)
+            .unwrap();
+    }
+    intro
+        .write_string(
+            11,
+            2,
+            "Marque con una X el(los) motivo(s) por los que reemplaza el Examen Semestral",
+        )
+        .unwrap();
+    intro
+        .write_string(
+            12,
+            3,
+            "Que los alumnos alcancen o logren de manera práctica los objetivos.",
+        )
+        .unwrap();
+    intro
+        .write_string(
+            13,
+            3,
+            "Que los alumnos pongan en práctica las etapas de un proyecto.",
+        )
+        .unwrap();
+    intro.write_string(14, 3, "Otros (Explique) ").unwrap();
+    for (sheet_name, offset) in [("GRUPO 1", 0_u32), ("GRUPO 2", 1)] {
+        let sheet = workbook.add_worksheet();
+        sheet.set_name(sheet_name).unwrap();
+        let labels = [
+            (4, 1, "CÓDIGO DE MATERIA:", 2),
+            (5, 1, "MATERIA:", 2),
+            (7, 1, "CÓDIGO DE HORA:", 2),
+            (7, 3, "AÑO:", 4),
+            (7, 5, "PERÍODO:", 6),
+            (8, 1, "GRUPO:", 2),
+            (10, 1, "DOCENTE:", 2),
+            (11, 1, "CEDULA:", 2),
+        ];
+        for (row, column, label, value_column) in labels {
+            sheet.write_string(row + offset, column, label).unwrap();
+            if offset > 0 {
+                let source = xlsx_ref(value_column, row);
+                sheet
+                    .write_formula(
+                        row + offset,
+                        value_column,
+                        format!("='GRUPO 1'!{source}").as_str(),
+                    )
+                    .unwrap();
+            }
+        }
+        for (column, label) in ["NOMBRE", "CEDULA", "NOTA", "OBSERVACIONES"]
+            .iter()
+            .enumerate()
+        {
+            sheet
+                .write_string(14 + offset, 1 + column as u16, *label)
+                .unwrap();
+        }
+        for number in 1..=3 {
+            sheet
+                .write_number(14 + offset + number, 0, number as f64)
+                .unwrap();
+        }
+        sheet
+            .write_string(19 + offset, 1, "OBSERVACIONES AL TRABAJO")
+            .unwrap();
+    }
+    workbook.save_to_buffer().expect("plantilla")
+}
+
+fn xlsx_ref(column: u16, row: u32) -> String {
+    super::xlsx_template::make_ref(column as u32 + 1, row + 1)
+}
+
+#[test]
+fn the_utp_final_sheet_fills_the_template_by_team() {
+    use super::{
+        final_sheet::{fill, load_settings, round_grade, store_settings},
+        xlsx_template::Template,
+    };
+    assert_eq!(round_grade(85.5, 0), 86.0);
+    assert_eq!(round_grade(42.75 / 50.0 * 100.0, 0), 86.0);
+    assert_eq!(round_grade(84.449, 1), 84.4);
+    assert_eq!(round_grade(84.45, 1), 84.5);
+
+    let dir = std::env::temp_dir().join(format!("flowdesk-hoja-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let template_path = dir.join("formato.xlsx");
+    std::fs::write(&template_path, utp_template()).unwrap();
+
+    let database = Database::in_memory();
+    let course_id = course(&database, "Desarrollo de Software VIII", "2GS131");
+    execute(
+        &database,
+        &format!(
+            "UPDATE courses SET professor = 'Prof. Demo' WHERE id = {course_id};
+             INSERT INTO students(id, identification, name) VALUES
+               (1, '4-111-1', 'Ana Castillo'), (2, '4-222-2', 'Bruno Díaz'), (3, '', 'Carla Pérez'),
+               (4, '4-444-4', 'Diego Ruiz'), (5, '4-555-5', 'Elena Sin Equipo');
+             INSERT INTO enrollments(id, course_id, student_id) VALUES
+               (1, {course_id}, 1), (2, {course_id}, 2), (3, {course_id}, 3), (4, {course_id}, 4), (5, {course_id}, 5);
+             INSERT INTO student_groups(id, course_id, name) VALUES (1, {course_id}, 'Equipo 2'), (2, {course_id}, 'Equipo 1');
+             INSERT INTO group_memberships(group_id, enrollment_id) VALUES (2, 1), (2, 2), (2, 3), (1, 4);
+             INSERT INTO evaluations(id, course_id, name, grading_mode, weight, max_score) VALUES
+               (1, {course_id}, 'Parcial', 'individual', 40, 100),
+               (2, {course_id}, 'Proyecto final', 'group', 60, 50);
+             INSERT INTO grades(enrollment_id, evaluation_id, score) VALUES
+               (1, 2, 42.75), (2, 2, 40), (4, 2, 30), (1, 1, 90);"
+        ),
+    );
+    let connection = database.lock().expect("lock");
+    let mut settings = load_settings(&connection, course_id).expect("settings");
+    // Por defecto: la evaluación por equipos del proyecto y los datos de la materia.
+    assert_eq!(settings.evaluation_id, Some(2));
+    assert_eq!(settings.subject, "Desarrollo de Software VIII");
+    assert_eq!(settings.group_name, "2GS131");
+    assert_eq!(settings.teacher_name, "Prof. Demo");
+    settings.teacher_identification = "4-700-100".into();
+    settings.career = "Lic. en Desarrollo de Software".into();
+    settings.schedule_code = "1234".into();
+    settings.reasons = vec![0, 2];
+    settings.other_reason = "Proyecto con una empresa".into();
+    settings
+        .team_notes
+        .insert("2".into(), "Buen trabajo en equipo".into());
+    store_settings(&connection, course_id, &settings).expect("store");
+    // La cédula y la carrera se proponen en la siguiente materia.
+    let other = {
+        connection
+            .execute("INSERT INTO courses(title, code) VALUES ('Otra', '1')", [])
+            .unwrap();
+        connection.last_insert_rowid()
+    };
+    let suggested = load_settings(&connection, other).expect("other");
+    assert_eq!(suggested.teacher_identification, "4-700-100");
+    assert_eq!(suggested.evaluation_id, None);
+
+    let preview = super::final_sheet::prepare_for_tests(&connection, course_id, &template_path);
+    let teams: Vec<(&str, Option<&str>, usize)> = preview
+        .teams
+        .iter()
+        .map(|team| {
+            (
+                team.name.as_str(),
+                team.sheet.as_deref(),
+                team.members.len(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        teams,
+        [
+            ("Equipo 1", Some("GRUPO 1"), 3),
+            ("Equipo 2", Some("GRUPO 2"), 1)
+        ]
+    );
+    let values: Vec<Option<f64>> = preview.teams[0]
+        .members
+        .iter()
+        .map(|member| member.value)
+        .collect();
+    assert_eq!(values, [Some(86.0), Some(80.0), None]);
+    assert!(preview.can_export);
+    let messages: Vec<&str> = preview
+        .issues
+        .iter()
+        .map(|issue| issue.message.as_str())
+        .collect();
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("Elena Sin Equipo")),
+        "{messages:?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.starts_with("Sin nota") && message.contains("Carla Pérez"))
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.starts_with("Sin cédula") && message.contains("Carla Pérez"))
+    );
+    let template = preview.template.as_ref().expect("plantilla");
+    assert_eq!(
+        (
+            template.groups,
+            template.rows_per_group,
+            template.reasons.len()
+        ),
+        (2, 3, 3)
+    );
+
+    let mut filled = Template::open(&template_path).expect("abrir");
+    fill(&mut filled, &preview.settings, &preview.teams).expect("rellenar");
+    let mut output = Template::from_bytes(filled.to_bytes().expect("bytes")).expect("salida");
+    let value = |template: &mut Template, sheet: &str, cell: &str| {
+        let (column, row) = super::xlsx_template::parse_ref(cell).unwrap();
+        template
+            .cells(sheet)
+            .unwrap()
+            .into_iter()
+            .find(|found| found.column == column && found.row == row)
+            .map(|found| found.text)
+    };
+    assert_eq!(
+        value(&mut output, "Introducción", "E6").as_deref(),
+        Some("Prof. Demo")
+    );
+    assert_eq!(
+        value(&mut output, "Introducción", "E11").as_deref(),
+        Some("1234")
+    );
+    assert_eq!(
+        value(&mut output, "Introducción", "C13").as_deref(),
+        Some("X")
+    );
+    assert_eq!(value(&mut output, "Introducción", "C14"), None);
+    assert_eq!(
+        value(&mut output, "Introducción", "C15").as_deref(),
+        Some("X")
+    );
+    assert_eq!(
+        value(&mut output, "Introducción", "D16").as_deref(),
+        Some("Proyecto con una empresa")
+    );
+    assert_eq!(value(&mut output, "GRUPO 1", "C5").as_deref(), Some("8408"));
+    assert_eq!(
+        value(&mut output, "GRUPO 1", "E8").as_deref(),
+        Some(preview.settings.year.as_str())
+    );
+    assert_eq!(
+        value(&mut output, "GRUPO 1", "B16").as_deref(),
+        Some("Ana Castillo")
+    );
+    assert_eq!(
+        value(&mut output, "GRUPO 1", "C16").as_deref(),
+        Some("4-111-1")
+    );
+    assert_eq!(value(&mut output, "GRUPO 1", "D16").as_deref(), Some("86"));
+    assert_eq!(value(&mut output, "GRUPO 1", "D18"), None);
+    // «Equipo 1» (id 2) va en GRUPO 1 con su observación; GRUPO 2 no tiene.
+    assert_eq!(
+        value(&mut output, "GRUPO 1", "B21").as_deref(),
+        Some("Buen trabajo en equipo")
+    );
+    assert_eq!(value(&mut output, "GRUPO 2", "B22"), None);
+    // GRUPO 2 conserva sus fórmulas y guarda su valor calculado.
+    assert_eq!(value(&mut output, "GRUPO 2", "C6").as_deref(), Some("8408"));
+    assert_eq!(
+        value(&mut output, "GRUPO 2", "B17").as_deref(),
+        Some("Diego Ruiz")
+    );
+    assert_eq!(value(&mut output, "GRUPO 2", "D17").as_deref(), Some("60"));
+
+    // Un tercer equipo no cabe en una plantilla de dos hojas.
+    connection
+        .execute_batch(&format!(
+            "INSERT INTO student_groups(id, course_id, name) VALUES (3, {course_id}, 'Equipo 10');
+             INSERT INTO group_memberships(group_id, enrollment_id) VALUES (3, 5);"
+        ))
+        .unwrap();
+    let preview = super::final_sheet::prepare_for_tests(&connection, course_id, &template_path);
+    assert!(!preview.can_export);
+    assert_eq!(
+        preview.teams.last().map(|team| team.name.as_str()),
+        Some("Equipo 10")
+    );
+    assert!(
+        preview
+            .issues
+            .iter()
+            .any(|issue| issue.level == "error" && issue.message.contains("3 equipos"))
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Con `FLOWDESK_UTP_TEMPLATE` apuntando a una copia del formulario oficial, comprueba que
+/// al rellenarlo no cambia nada más que los valores. `FLOWDESK_UTP_OUT` guarda el resultado.
+#[test]
+#[ignore]
+fn fills_the_real_utp_template_without_changing_its_format() {
+    use super::{final_sheet::fill, xlsx_template::Template};
+    use std::io::Read;
+    let Ok(path) = std::env::var("FLOWDESK_UTP_TEMPLATE") else {
+        return;
+    };
+    let path = std::path::PathBuf::from(path);
+    let database = Database::in_memory();
+    let course_id = course(&database, "Desarrollo de Software VIII", "2GS131");
+    let mut members = String::new();
+    for index in 1..=12 {
+        members.push_str(&format!(
+            "INSERT INTO students(id, identification, name) VALUES ({index}, '4-{index}00-{index}', 'Estudiante {index:02}');
+             INSERT INTO enrollments(id, course_id, student_id) VALUES ({index}, {course_id}, {index});
+             INSERT INTO group_memberships(group_id, enrollment_id) VALUES ({}, {index});
+             INSERT INTO grades(enrollment_id, evaluation_id, score) VALUES ({index}, 1, {});",
+            if index <= 6 { 1 } else { 2 },
+            70.0 + index as f64 * 2.25
+        ));
+    }
+    execute(
+        &database,
+        &format!(
+            "UPDATE courses SET professor = 'Prof. Demo' WHERE id = {course_id};
+             INSERT INTO evaluations(id, course_id, name, grading_mode, weight, max_score) VALUES (1, {course_id}, 'Proyecto final', 'group', 30, 100);
+             INSERT INTO student_groups(id, course_id, name) VALUES (1, {course_id}, 'Equipo A'), (2, {course_id}, 'Equipo B');
+             {members}"
+        ),
+    );
+    let connection = database.lock().expect("lock");
+    let mut settings = super::final_sheet::load_settings(&connection, course_id).expect("settings");
+    settings.reasons = vec![0, 5];
+    settings.schedule_code = "1234".into();
+    super::final_sheet::store_settings(&connection, course_id, &settings).expect("store");
+    let preview = super::final_sheet::prepare_for_tests(&connection, course_id, &path);
+    let info = preview.template.as_ref().expect("plantilla");
+    println!(
+        "hojas de grupo {}, filas {}, motivos {:?}",
+        info.groups, info.rows_per_group, info.reasons
+    );
+    assert_eq!(
+        (info.groups, info.rows_per_group, info.reasons.len()),
+        (8, 10, 7)
+    );
+    for issue in &preview.issues {
+        println!("{}: {}", issue.level, issue.message);
+    }
+    let mut template = Template::open(&path).expect("abrir");
+    fill(&mut template, &preview.settings, &preview.teams).expect("rellenar");
+    let bytes = template.to_bytes().expect("bytes");
+    if let Ok(out) = std::env::var("FLOWDESK_UTP_OUT") {
+        std::fs::write(out, &bytes).unwrap();
+    }
+
+    // Todo lo que no es una hoja ni el libro sigue idéntico; en las hojas, cada celda
+    // conserva su estilo y lo de fuera de los datos (combinadas, márgenes…) no cambia.
+    let read_all = |data: &[u8]| {
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data)).unwrap();
+        (0..archive.len())
+            .map(|index| {
+                let mut file = archive.by_index(index).unwrap();
+                let mut content = Vec::new();
+                file.read_to_end(&mut content).unwrap();
+                (file.name().unwrap().to_string(), content)
+            })
+            .collect::<Vec<_>>()
+    };
+    let original = read_all(&std::fs::read(&path).unwrap());
+    let filled = read_all(&bytes);
+    assert_eq!(
+        original.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        filled.iter().map(|(name, _)| name).collect::<Vec<_>>()
+    );
+    let styles = |xml: &str| {
+        let mut found = Vec::new();
+        let mut rest = xml;
+        while let Some(start) = rest.find("<c r=\"") {
+            let tag_end = rest[start..].find('>').unwrap() + start;
+            let tag = &rest[start..tag_end];
+            let reference = tag[6..].split('"').next().unwrap().to_string();
+            let style = tag
+                .split(" s=\"")
+                .nth(1)
+                .map(|value| value.split('"').next().unwrap().to_string());
+            found.push((reference, style));
+            rest = &rest[tag_end..];
+        }
+        found
+    };
+    let outside = |xml: &str| {
+        let start = xml.find("<sheetData").unwrap();
+        let end = xml.find("</sheetData>").unwrap();
+        format!("{}{}", &xml[..start], &xml[end..])
+    };
+    let mut changed = 0;
+    for ((name, before), (_, after)) in original.iter().zip(&filled) {
+        if before == after {
+            continue;
+        }
+        changed += 1;
+        let (before, after) = (
+            String::from_utf8_lossy(before),
+            String::from_utf8_lossy(after),
+        );
+        if name == "xl/workbook.xml" {
+            assert_eq!(after.replace(" fullCalcOnLoad=\"1\"", ""), before, "{name}");
+            continue;
+        }
+        assert!(name.starts_with("xl/worksheets/sheet"), "{name} cambió");
+        assert_eq!(styles(&before), styles(&after), "estilos de {name}");
+        assert_eq!(
+            outside(&before),
+            outside(&after),
+            "fuera de los datos en {name}"
+        );
+    }
+    println!("partes cambiadas: {changed}");
+
+    let mut output = Template::from_bytes(bytes).unwrap();
+    let cells = output.cells("GRUPO 1").unwrap();
+    let at = |cells: &[super::xlsx_template::CellText], column: u32, row: u32| {
+        cells
+            .iter()
+            .find(|cell| cell.column == column && cell.row == row)
+            .map(|cell| cell.text.clone())
+    };
+    assert_eq!(at(&cells, 2, 16).as_deref(), Some("Estudiante 01"));
+    assert_eq!(at(&cells, 4, 16).as_deref(), Some("72"));
+    assert_eq!(at(&cells, 3, 5).as_deref(), Some("8408"));
+    let second = output.cells("GRUPO 2").unwrap();
+    assert_eq!(at(&second, 2, 17).as_deref(), Some("Estudiante 07"));
+    assert_eq!(at(&second, 3, 6).as_deref(), Some("8408"));
+    let intro = output.cells("Introducción").unwrap();
+    assert_eq!(at(&intro, 5, 6).as_deref(), Some("Prof. Demo"));
+    assert_eq!(at(&intro, 3, 13).as_deref(), Some("X"));
+    assert_eq!(at(&intro, 3, 18).as_deref(), Some("X"));
+    assert_eq!(at(&intro, 3, 14), None);
+}
+
+/// Con `FLOWDESK_DB` (una COPIA de la base real) y `FLOWDESK_UTP_TEMPLATE`, muestra la
+/// revisión de cada materia y guarda la hoja rellenada en `FLOWDESK_UTP_OUT` (carpeta).
+#[test]
+#[ignore]
+fn prepares_the_utp_sheet_for_a_real_flowdesk_database_copy() {
+    let (Ok(db), Ok(template)) = (
+        std::env::var("FLOWDESK_DB"),
+        std::env::var("FLOWDESK_UTP_TEMPLATE"),
+    ) else {
+        return;
+    };
+    let template = std::path::PathBuf::from(template);
+    let connection = Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .expect("copia");
+    let courses: Vec<(i64, String)> = connection
+        .prepare("SELECT id, title FROM courses ORDER BY id")
+        .unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    for (id, title) in courses {
+        let preview = super::final_sheet::prepare_for_tests(&connection, id, &template);
+        let evaluation = preview
+            .evaluations
+            .iter()
+            .find(|evaluation| Some(evaluation.id) == preview.settings.evaluation_id)
+            .map_or("nota final del curso".to_string(), |evaluation| {
+                evaluation.name.clone()
+            });
+        println!(
+            "{title}: nota de «{evaluation}», {} equipos, sin equipo {}",
+            preview.teams.len(),
+            preview.unassigned.len()
+        );
+        for team in &preview.teams {
+            let values: Vec<String> = team
+                .members
+                .iter()
+                .map(|member| member.value.map_or("—".into(), |value| value.to_string()))
+                .collect();
+            println!(
+                "  {} → {}: {}",
+                team.name,
+                team.sheet.as_deref().unwrap_or("no cabe"),
+                values.join(", ")
+            );
+        }
+        for issue in &preview.issues {
+            println!(
+                "  [{}] {}",
+                issue.level,
+                issue.message.chars().take(110).collect::<String>()
+            );
+        }
+        if let Ok(out) = std::env::var("FLOWDESK_UTP_OUT") {
+            let mut filled = super::xlsx_template::Template::open(&template).unwrap();
+            super::final_sheet::fill(&mut filled, &preview.settings, &preview.teams).unwrap();
+            filled
+                .save(&std::path::Path::new(&out).join(format!("curso-{id}.xlsx")))
+                .unwrap();
+        }
+    }
+}

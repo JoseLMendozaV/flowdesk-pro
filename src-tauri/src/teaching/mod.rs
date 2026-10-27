@@ -5,6 +5,7 @@
 pub mod academic;
 pub mod commands;
 pub mod error;
+pub mod final_sheet;
 pub mod legacy;
 pub mod models;
 pub mod overview;
@@ -13,6 +14,7 @@ pub mod syllabus;
 pub mod sync;
 #[cfg(test)]
 mod tests;
+pub mod xlsx_template;
 
 use tauri::{AppHandle, Emitter};
 

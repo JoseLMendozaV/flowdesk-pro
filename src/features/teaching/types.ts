@@ -33,6 +33,15 @@ export type { CourseSummary } from "./bindings/CourseSummary";
 export type { EvaluationColumn } from "./bindings/EvaluationColumn";
 export type { EvaluationInput } from "./bindings/EvaluationInput";
 export type { EvaluationRow } from "./bindings/EvaluationRow";
+export type {
+  ExportSummary,
+  FinalSheetPreview,
+  FinalSheetSettings,
+  SheetIssue,
+  SheetMember,
+  SheetTeam,
+  TemplateInfo,
+} from "./bindings/FinalSheet";
 export type { GradeCell } from "./bindings/GradeCell";
 export type { GradeUpdate } from "./bindings/GradeUpdate";
 export type { Gradebook } from "./bindings/Gradebook";

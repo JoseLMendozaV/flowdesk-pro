@@ -97,3 +97,41 @@ Con una copia de la base real, cargar el calendario añade 40 días y quita 5 se
   - copias (carpeta de iCloud, copia ahora y restaurar con confirmación y reinicio).
 - `npm run test:onboarding`: registro con «Copias de seguridad» como función nueva y Docencia en la revisión 4.
 - Revisión visual en claro y oscuro de Plan, calendario académico, panel del Resumen y Configuración.
+
+## Hoja de notas del proyecto final de la UTP (0.9.1)
+
+**Docencia → Informes → «Preparar hoja…».** Rellena el formulario oficial «Formulario de registro de proyectos finales» (una hoja «Introducción» y una hoja «GRUPO N» por equipo) **sin cambiar su formato**.
+
+- **Plantilla:** el docente elige una vez el Excel oficial. FlowDesk lo comprueba y guarda una copia privada en `plantillas/registro-proyectos-finales.xlsx`, dentro de los datos de la app.
+  - No va en la app ni en el repositorio, que es público: es un formulario institucional y sus metadatos llevan nombres de personas.
+  - Si la UTP cambia el formulario, se elige el nuevo con «Cambiar…».
+- **Datos generales:**
+  - docente, cédula del docente, carrera, asignatura y su código, código de horario, grupo, año y período;
+  - se proponen desde la materia, el calendario académico (periodo de clases en curso) y la última hoja preparada (cédula y carrera);
+  - se guardan por materia en `settings` (`teaching_final_sheet:<id>`).
+- **Nota:** la de una evaluación o la nota final del curso.
+  - Por defecto, la evaluación que se llame «proyecto» o «semestral»; si no hay ninguna, la nota final.
+  - La nota se lleva a escala de 100 según el puntaje máximo de la evaluación. En las evaluaciones por equipo vale la de cada integrante (la del equipo, salvo que se cambiara a alguien).
+- **Redondeo:** a enteros (85,5 → 86) o a un decimal, con la mitad hacia arriba y sin errores de coma flotante (84,5 calculado como 84,4999… sube a 85).
+- **Motivos:** las casillas muestran el texto exacto de la plantilla y se marcan con «X»; «Otros» lleva su explicación.
+- **Observaciones al trabajo:** opcionales, por equipo.
+- **Revisión antes de exportar:**
+  - **Impiden exportar:** no hay plantilla, hay más equipos que hojas o un equipo con más integrantes que filas, o hay notas fuera de 0–100.
+  - **Avisos:** estudiantes sin equipo (no salen), sin nota (la celda queda vacía) o sin cédula, datos generales vacíos y ningún motivo marcado.
+- **Vista previa** por equipo con la hoja donde va («GRUPO 1»…), en orden natural de nombres (Equipo 2 antes que Equipo 10).
+
+**Cómo se conserva el formato** (`teaching/xlsx_template.rs`):
+- Se cambia solo el valor de las celdas, dentro del XML de cada hoja, conservando su estilo (`s`). El texto va en línea, así que no se toca `sharedStrings.xml`.
+- Todo lo demás se copia sin recomprimir: estilos, tema, logo, celdas combinadas, márgenes, ajustes de impresión y propiedades.
+- En «GRUPO 2» a «GRUPO 8», que copian los datos generales de «GRUPO 1» con fórmulas, se conservan las fórmulas y se actualiza su valor calculado. Además, el libro pide recalcular al abrirse (`fullCalcOnLoad`).
+- Las celdas se encuentran por sus etiquetas («CÓDIGO DE MATERIA:», «NOMBRE», «NOTA», «Nombre del Docente:»…), teniendo en cuenta las combinadas. Así funciona aunque «GRUPO 2» esté una fila más abajo o el formulario cambie un poco.
+- Si hay más de 8 equipos, la propia plantilla indica copiar una hoja. Copiada en Excel como «GRUPO 9» y elegida de nuevo, FlowDesk la reconoce.
+
+**Pruebas:**
+- **Plantilla mínima:** rellenado por equipos, fórmulas, motivos, observaciones, redondeo, avisos y equipos que no caben.
+- **Formulario oficial** (opcional, con `FLOWDESK_UTP_TEMPLATE`):
+  - detecta 8 hojas de grupo, 10 filas y 7 motivos;
+  - solo cambian las 9 hojas y la marca de recálculo;
+  - cada celda conserva su estilo y lo de fuera de los datos queda idéntico.
+- **Datos reales:** con una copia de la base, DS VIII toma «proyecto Final» con sus 7 equipos y DS V la nota final con sus 5 equipos. Revisado visualmente con Vista Rápida de macOS.
+- **Interfaz:** flujo con aviso de lo que falta, guardado al salir del campo y exportación.

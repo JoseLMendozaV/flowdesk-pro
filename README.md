@@ -28,7 +28,7 @@ Las Fases 1 a 7 están implementadas. La Fase 7 original (widgets nativos) se de
 - inicio opcional con macOS mediante LaunchAgent y modo de inicio oculto;
 - calendario con vistas de día, semana y mes, eventos y tareas colocadas a su hora con su duración estimada (las que no tienen hora, a una hora por defecto configurable), que se mueven arrastrándolos y se alargan estirándolos;
 - recordatorios de tareas, eventos y notas, resumen diario y horas de silencio, sin duplicados y resistentes al reposo;
-- **Docencia** (antes la app Control Docente): materias con su horario semanal en el calendario, calendario académico (feriados de Panamá y calendario de la UTP) que quita esas clases del horario y la asistencia, plan del curso con su avance y una nota flotante para preparar cada clase, estudiantes, equipos, asistencia, evaluaciones con rúbricas, libro de notas, planificación, analítica e informes en Excel, con importación desde Control Docente o su versión Django;
+- **Docencia** (antes la app Control Docente): materias con su horario semanal en el calendario, calendario académico (feriados de Panamá y calendario de la UTP) que quita esas clases del horario y la asistencia, plan del curso con su avance y una nota flotante para preparar cada clase, hoja de notas del proyecto final en el formulario oficial de la UTP (sin cambiar su formato), estudiantes, equipos, asistencia, evaluaciones con rúbricas, libro de notas, planificación, analítica e informes en Excel, con importación desde Control Docente o su versión Django;
 - copias de seguridad diarias de toda la base en la carpeta que elija el usuario (por ejemplo, en iCloud Drive), conservando las últimas 30, y restauración con un clic;
 - espacios de trabajo que filtran tareas, proyectos, notas y agenda, y abren sus carpetas y apps;
 - historial del portapapeles opcional, con exclusiones y detección conservadora de credenciales;
@@ -153,7 +153,7 @@ No hay telemetría ni servicios remotos obligatorios.
 - [Repeticiones, papelera y paleta de comandos (0.6.0)](docs/MEJORAS_0.6.md)
 - [Arrastrar en el calendario, fecha de inicio y próximo evento (0.7.0)](docs/MEJORAS_0.7.md)
 - [Docencia: Control Docente integrado (0.8.0)](docs/DOCENCIA.md)
-- [Copias de seguridad, plan del curso y calendario académico (0.9.0)](docs/MEJORAS_0.9.md)
+- [Copias de seguridad, plan del curso, calendario académico (0.9.0) y hoja de notas del proyecto final de la UTP (0.9.1)](docs/MEJORAS_0.9.md)
 - [Bienvenida, recorrido y novedades](docs/ONBOARDING.md)
 
 Referencias oficiales: [Tauri 2](https://v2.tauri.app/), [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/).

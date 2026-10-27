@@ -729,3 +729,35 @@ test("Configuración: copias de seguridad en una carpeta propia y restaurar con 
     await page.close();
   }
 });
+
+test("Docencia: la hoja de notas del proyecto final se revisa, guarda sus datos y se exporta", async () => {
+  const page = await open("target=teaching&state=seen&tab=reports", { width: 1180, height: 900 });
+  try {
+    await page.click("Preparar hoja…");
+    await page.waitFor(`${text}.includes("FORMATO DE REGISTRO DE PROYECTOS") && ${text}.includes("GRUPO 3")`);
+    const body = await page.evaluate(text);
+    assert.ok(body.includes("Falta: código de horario."), "avisa de lo que falta");
+    assert.ok(body.includes("Sin cédula"), "avisa de los estudiantes sin cédula");
+    assert.ok(body.includes("Que los alumnos desarrollen competencias"), "los motivos salen de la plantilla");
+    // 91,5 se redondea a 92 en la vista previa.
+    assert.ok(await page.evaluate("[...document.querySelectorAll('.final-sheet-teams td')].some((cell) => cell.textContent === '92')"));
+
+    // El código de horario se guarda al salir del campo y la revisión se actualiza.
+    await page.evaluate(`(() => {
+      const input = [...document.querySelectorAll('.final-sheet-fields label')].find((label) => label.textContent.includes('Código de horario')).querySelector('input');
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '1234');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.blur();
+    })()`);
+    await page.waitFor(`!${text}.includes("Falta: código de horario.")`);
+    const saved = await page.evaluate(calls("teaching_save_final_sheet_settings"));
+    assert.equal(saved.at(-1).settings.scheduleCode, "1234");
+
+    await page.click("Exportar Excel…");
+    await page.waitFor(`${text}.includes("Hoja exportada: 3 equipos y 11 estudiantes")`);
+    assert.deepEqual(await page.evaluate(calls("teaching_export_final_sheet")), [{ courseId: 1, path: "/Users/demo/Desktop/Registro de proyectos finales.xlsx" }]);
+  } finally {
+    await page.close();
+  }
+});

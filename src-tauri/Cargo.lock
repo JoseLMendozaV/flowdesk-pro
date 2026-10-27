@@ -1167,6 +1167,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "thiserror 2.0.21",
  "uuid",
+ "zip 9.1.2",
 ]
 
 [[package]]

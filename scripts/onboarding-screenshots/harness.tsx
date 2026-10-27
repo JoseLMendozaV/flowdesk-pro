@@ -117,6 +117,8 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   restore_backup: () => null,
   prepare_restart: () => null,
   "plugin:process|restart": () => null,
+  // El diálogo de guardar devuelve una ruta ficticia (exportaciones de Docencia).
+  "plugin:dialog|save": () => "/Users/demo/Desktop/Registro de proyectos finales.xlsx",
   get_onboarding_state: () => onboarding,
   update_onboarding_preferences: (args) => (onboarding = { ...onboarding, ...(args.preferences as object) }),
   finish_welcome_onboarding: (args) =>

@@ -1,8 +1,11 @@
-import { Database, FileDown, FileSpreadsheet, GraduationCap, Printer } from "lucide-react";
+import { useState } from "react";
+import { ClipboardList, Database, FileDown, FileSpreadsheet, GraduationCap, Printer } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { api } from "../lib/api";
 import { useAppActions } from "../lib/app-context";
+import { AnimatePresence } from "../lib/motion";
 import { useResource } from "../lib/useResource";
+import { FinalSheetModal } from "./FinalSheetModal";
 import { LoadingPill } from "./LoadingPill";
 
 export function ReportsView({ courseId }: { courseId: number }) {
@@ -14,6 +17,7 @@ export function ReportsView({ courseId }: { courseId: number }) {
   }
   const { run } = useAppActions();
   const { data: report, loading } = useResource(() => api.report(courseId), [courseId]);
+  const [finalSheet, setFinalSheet] = useState(false);
   if (!report) return loading ? <LoadingPill /> : null;
   const fileName = report.course.title || "curso";
 
@@ -64,6 +68,18 @@ export function ReportsView({ courseId }: { courseId: number }) {
             Exportar Excel
           </button>
         </div>
+      </section>
+      <section className="panel final-sheet-card">
+        <span className="quick-icon emerald">
+          <ClipboardList />
+        </span>
+        <div>
+          <strong>Hoja de notas del proyecto final (UTP)</strong>
+          <small>Rellena el formulario oficial de registro de proyectos finales con un equipo por hoja, la cédula y la nota redondeada de cada estudiante, sin cambiar su formato.</small>
+        </div>
+        <button className="secondary-button" onClick={() => setFinalSheet(true)}>
+          Preparar hoja…
+        </button>
       </section>
       <section className="report-summary-grid">
         <div>
@@ -127,6 +143,7 @@ export function ReportsView({ courseId }: { courseId: number }) {
           en este equipo.
         </p>
       </section>
+      <AnimatePresence>{finalSheet && <FinalSheetModal courseId={courseId} onClose={() => setFinalSheet(false)} />}</AnimatePresence>
     </div>
   );
 }

@@ -22,6 +22,9 @@ import type {
   DistributeResult,
   EvaluationInput,
   EvaluationRow,
+  ExportSummary,
+  FinalSheetPreview,
+  FinalSheetSettings,
   GenerateSessionsResult,
   GradeUpdate,
   Gradebook,
@@ -46,6 +49,7 @@ import type {
   StudentProfile,
   StudentRow,
   Syllabus,
+  TemplateInfo,
   TimeBlocks,
   TopicInput,
 } from "../types";
@@ -141,4 +145,12 @@ export const api = {
     invoke<DistributeResult>("teaching_distribute_topics", { courseId, reset }),
   /** Abre (o crea) la nota flotante para preparar la clase del tema. */
   prepareTopic: (topicId: number) => invoke<string>("teaching_prepare_topic", { topicId }),
+  /** Hoja de notas del proyecto final de la UTP: datos, equipos con sus notas y revisiones. */
+  finalSheet: (courseId: number) => invoke<FinalSheetPreview>("teaching_get_final_sheet", { courseId }),
+  saveFinalSheetSettings: (courseId: number, settings: FinalSheetSettings) =>
+    invoke<FinalSheetPreview>("teaching_save_final_sheet_settings", { courseId, settings }),
+  /** Guarda una copia privada del formulario oficial para usarlo como plantilla. */
+  setFinalSheetTemplate: (path: string) => invoke<TemplateInfo>("teaching_set_final_sheet_template", { path }),
+  exportFinalSheet: (courseId: number, path: string) =>
+    invoke<ExportSummary>("teaching_export_final_sheet", { courseId, path }),
 };

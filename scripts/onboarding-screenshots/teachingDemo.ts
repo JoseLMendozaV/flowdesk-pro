@@ -218,6 +218,66 @@ const analytics = {
   ],
 };
 
+// Hoja de notas del proyecto final (UTP): tres equipos ficticios y la plantilla ya elegida.
+const sheetReasons = [
+  "Que los alumnos alcancen o logren de manera práctica los objetivos de aprendizaje.",
+  "Que los alumnos puedan elaborar proyectos que den respuesta a los problemas y / o retos de la vida real",
+  "Que los alumnos pongan en práctica las etapas de desarrollo de un proyecto.",
+  "Que los alumnos se motiven al desarrollo de investigaciones",
+  "Que los alumnos apliquen estrategias y herramientas para resolver problemas",
+  "Que los alumnos desarrollen competencias como el trabajo en equipo, la toma de decisiones y la búsqueda de información",
+  "Otros (Explique)",
+];
+const sheetGrades = [91.5, 88, 84.25, 79.5, 95, 72.4, null, 86.5, 77, 90.5, 68.75];
+let finalSheetSettings = {
+  teacherName: "Prof. Demo",
+  teacherIdentification: "4-700-1234",
+  career: "Licenciatura en Desarrollo de Software",
+  subject: courses[0].title,
+  subjectCode: "8408",
+  scheduleCode: "",
+  groupName: "2GS131",
+  year: "2026",
+  period: "II Semestre",
+  evaluationId: 3 as number | null,
+  decimals: 0,
+  reasons: [0, 5],
+  otherReason: "",
+  teamNotes: { "1": "Entregaron a tiempo y con buena documentación." } as Record<string, string>,
+};
+function finalSheetPreview() {
+  const decimals = finalSheetSettings.decimals;
+  const round = (value: number) => Math.round(value * 10 ** decimals + 1e-9) / 10 ** decimals;
+  const teams = [
+    { id: 1, name: "Equipo Alfa", from: 0, to: 4 },
+    { id: 2, name: "Equipo Beta", from: 4, to: 8 },
+    { id: 3, name: "Equipo Gamma", from: 8, to: 11 },
+  ].map((team, index) => ({
+    id: team.id,
+    name: team.name,
+    sheet: `GRUPO ${index + 1}`,
+    members: students.slice(team.from, team.to).map((student, offset) => {
+      const grade = sheetGrades[team.from + offset];
+      return { name: student.name, identification: team.from + offset === 9 ? "" : student.identification, grade, value: grade == null ? null : round(grade) };
+    }),
+  }));
+  const issues = [
+    ...(finalSheetSettings.scheduleCode ? [] : [{ level: "warning", message: "Falta: código de horario." }]),
+    { level: "warning", message: `Sin nota (la celda queda vacía): ${students[6].name}.` },
+    { level: "warning", message: `Sin cédula: ${students[9].name}.` },
+  ];
+  return {
+    settings: finalSheetSettings,
+    template: { name: "FORMATO DE REGISTRO DE PROYECTOS POR SEMESTRAL_.xlsx", groups: 8, rowsPerGroup: 10, reasons: sheetReasons },
+    evaluations: evaluations.map((evaluation) => ({ id: evaluation.id, name: evaluation.name, gradingMode: evaluation.gradingMode, maxScore: evaluation.maxScore })),
+    teams,
+    unassigned: [],
+    issues,
+    canExport: true,
+    suggestedFileName: `Registro de proyectos finales - ${courses[0].title} 2GS131.xlsx`,
+  };
+}
+
 export const teachingHandlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   teaching_get_bootstrap: () => bootstrap,
   teaching_get_overview: () => overview,
@@ -239,6 +299,13 @@ export const teachingHandlers: Record<string, (args: Record<string, unknown>) =>
   teaching_get_course_settings: () => ({ id: 1, title: courses[0].title, code: "8408", groupName: "2GS131", periodLabel: "Segundo semestre", academicPeriodId: null, professor: "Prof. Demo", passingGrade: 71, attendanceMinimum: 80, lowGradeAlert: 71, lowAttendanceAlert: 80, promotionRequiresAttendance: true, isArchived: false }),
   teaching_generate_sessions: () => ({ created: 30, updated: 1, skipped: 6 }),
   teaching_get_syllabus: () => syllabus,
+  teaching_get_final_sheet: () => finalSheetPreview(),
+  teaching_save_final_sheet_settings: (args) => {
+    finalSheetSettings = args.settings as typeof finalSheetSettings;
+    return finalSheetPreview();
+  },
+  teaching_set_final_sheet_template: () => ({ name: "FORMATO DE REGISTRO DE PROYECTOS POR SEMESTRAL_.xlsx", groups: 8, rowsPerGroup: 10, reasons: sheetReasons }),
+  teaching_export_final_sheet: () => ({ teams: 3, students: 11 }),
   teaching_prepare_topic: () => "n1",
   teaching_set_topic_done: () => null,
   teaching_add_topics: (args) => String(args.text).split("\n").filter((line) => line.trim()).length,

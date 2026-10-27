@@ -1,6 +1,6 @@
 # Docencia: Control Docente integrado en FlowDesk (0.8.0)
 
-> En la 0.9.0 se añaden el **calendario académico** (feriados de Panamá y calendario de la UTP) y el **plan del curso**. Ver [MEJORAS_0.9.md](MEJORAS_0.9.md).
+> En la 0.9.0 se añaden el **calendario académico** (feriados de Panamá y calendario de la UTP) y el **plan del curso**, y en la 0.9.1 la **hoja de notas del proyecto final** en el formulario oficial de la UTP. Ver [MEJORAS_0.9.md](MEJORAS_0.9.md).
 
 Fecha de verificación: 26 de octubre de 2026.
 
@@ -105,6 +105,7 @@ Tras importar, Control Docente puede dejar de usarse; su base sigue intacta por 
   - `legacy.rs`: importaciones y respaldo.
   - `academic.rs`: calendario académico (feriados de Panamá y UTP) y su efecto en horario y sesiones (0.9.0).
   - `syllabus.rs`: plan del curso, reparto en sesiones y nota de preparación (0.9.0).
+  - `final_sheet.rs` y `xlsx_template.rs`: hoja de notas del proyecto final de la UTP sobre la plantilla oficial, sin cambiar su formato (0.9.1).
   - `overview.rs`: Resumen (0.8.2).
   - `error.rs` y `models.rs`.
 - **Interfaz** (`src/features/teaching/`):
