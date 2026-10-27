@@ -31,6 +31,11 @@ Código: `src-tauri/src/backup.rs` y `src/features/backups/BackupsSection.tsx`.
 
 ## Calendario académico (Docencia → Horario)
 
+**Se carga solo (0.9.2).** Al abrir FlowDesk, o al abrir Docencia tras importar o crear la primera materia, se cargan una vez el calendario de la UTP y los feriados de Panamá de este año y el siguiente, y se aplican a las clases y la asistencia.
+- Cada año nuevo se añaden los feriados del año siguiente.
+- Lo que el docente quite no vuelve a aparecer: se guarda qué años y qué calendario ya se cargaron (`settings.teaching_holiday_years` y `teaching_utp_calendar_loaded`).
+- En la 0.9.0 había que pulsar el botón, y por eso los días libres no aparecían en el calendario.
+
 - **«Cargar feriados y calendario UTP»** añade de una vez:
   - **Feriados nacionales de Panamá** de este año y el próximo. Se calculan: fijos más Martes de Carnaval y Viernes Santo según la Pascua, y el que cae en domingo se pasa al lunes. En 2026 coinciden con la lista oficial: 1 y 9 ene, 17 feb, 3 abr, 1 may, 3, 5, 10 y 28 nov, 8 dic, 21 dic (puente del 20) y 25 dic.
   - **Calendario académico 2026-2027 de la UTP** (pregrado, modificado por el Consejo Académico el 6 de febrero de 2026):

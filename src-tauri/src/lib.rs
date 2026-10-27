@@ -68,6 +68,10 @@ pub fn run() {
                 && commands::preferences::stored_launch_hidden(&database).unwrap_or(false);
             let timers = TimerService::new(Box::new(SystemClock));
             let _ = timers.recover(&database);
+            // Feriados de Panamá y calendario de la UTP: se cargan solos una vez (Docencia).
+            if let Err(error) = teaching::academic::ensure_official_now(&database) {
+                eprintln!("No se pudo cargar el calendario académico: {error:?}");
+            }
             app.manage(database);
             app.manage(timers);
             app.manage(ReminderService::default());

@@ -279,6 +279,12 @@ pub fn previous_range(
 /// Añade los feriados nacionales de `years` y el calendario de la UTP. Lo que ya estaba
 /// (mismo origen, fecha y nombre) no se duplica. Devuelve cuántos días se añadieron.
 pub fn load_official(connection: &Connection, years: &[i32]) -> AppResult<i64> {
+    let added = insert_official(connection, years, true)?;
+    mark_loaded(connection, years)?;
+    Ok(added)
+}
+
+fn insert_official(connection: &Connection, years: &[i32], with_utp: bool) -> AppResult<i64> {
     let mut added = 0;
     let mut insert = connection.prepare(
         "INSERT OR IGNORE INTO academic_calendar(title, kind, starts_on, ends_on, cancels_classes, source)
@@ -290,11 +296,97 @@ pub fn load_official(connection: &Connection, years: &[i32]) -> AppResult<i64> {
             added += insert.execute(params![title, "holiday", date, date, true, "panama"])? as i64;
         }
     }
-    for (kind, from, until, title) in UTP_2026_2027 {
-        let cancels = matches!(*kind, "holiday" | "break" | "exams");
-        added += insert.execute(params![title, kind, from, until, cancels, "utp"])? as i64;
+    if with_utp {
+        for (kind, from, until, title) in UTP_2026_2027 {
+            let cancels = matches!(*kind, "holiday" | "break" | "exams");
+            added += insert.execute(params![title, kind, from, until, cancels, "utp"])? as i64;
+        }
     }
     Ok(added)
+}
+
+const LOADED_YEARS_KEY: &str = "teaching_holiday_years";
+const UTP_LOADED_KEY: &str = "teaching_utp_calendar_loaded";
+
+fn loaded_years(connection: &Connection) -> rusqlite::Result<Vec<i32>> {
+    Ok(connection
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            [LOADED_YEARS_KEY],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .and_then(|value| serde_json::from_str(&value).ok())
+        .unwrap_or_default())
+}
+
+/// Recuerda qué años de feriados y que el calendario de la UTP ya se cargaron, para no
+/// volver a añadir lo que el docente haya quitado.
+fn mark_loaded(connection: &Connection, years: &[i32]) -> rusqlite::Result<()> {
+    let mut all = loaded_years(connection)?;
+    all.extend(
+        years
+            .iter()
+            .filter(|year| !all.contains(year))
+            .copied()
+            .collect::<Vec<_>>(),
+    );
+    all.sort_unstable();
+    let store = "INSERT INTO settings(key, value, updated_at) VALUES (?1, ?2, unixepoch())
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at";
+    connection.execute(
+        store,
+        params![
+            LOADED_YEARS_KEY,
+            serde_json::to_string(&all).unwrap_or_default()
+        ],
+    )?;
+    connection.execute(store, params![UTP_LOADED_KEY, "1"])?;
+    Ok(())
+}
+
+/// Carga sola, una vez, el calendario oficial en cuanto Docencia tiene materias: el de la
+/// UTP y los feriados de Panamá del año en curso y el siguiente (y de cada año nuevo que
+/// llegue). Devuelve el cambio si añadió algo.
+pub fn ensure_official(connection: &Connection, year: i32) -> AppResult<Option<CalendarChange>> {
+    let has_courses: bool =
+        connection.query_row("SELECT EXISTS(SELECT 1 FROM courses)", [], |row| row.get(0))?;
+    if !has_courses {
+        return Ok(None);
+    }
+    let loaded = loaded_years(connection)?;
+    let missing: Vec<i32> = [year, year + 1]
+        .into_iter()
+        .filter(|year| !loaded.contains(year))
+        .collect();
+    let utp_loaded = connection
+        .query_row(
+            "SELECT 1 FROM settings WHERE key = ?1",
+            [UTP_LOADED_KEY],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
+        .is_some();
+    if missing.is_empty() && utp_loaded {
+        return Ok(None);
+    }
+    let added = insert_official(connection, &missing, !utp_loaded)?;
+    mark_loaded(connection, &missing)?;
+    if added == 0 {
+        return Ok(None);
+    }
+    let mut change = apply(connection, None)?;
+    change.added = added;
+    Ok(Some(change))
+}
+
+/// Al abrir FlowDesk (y al abrir Docencia): carga el calendario oficial si hace falta.
+pub fn ensure_official_now(database: &Database) -> AppResult<Option<CalendarChange>> {
+    let mut connection = database.lock().map_err(|_| AppError::State)?;
+    let transaction = connection.transaction()?;
+    let change = ensure_official(&transaction, Local::now().year())?;
+    transaction.commit()?;
+    Ok(change)
 }
 
 /// Lleva el calendario académico al resto de Docencia: los días al calendario de FlowDesk,

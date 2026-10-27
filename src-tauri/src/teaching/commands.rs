@@ -77,6 +77,10 @@ pub fn teaching_get_bootstrap(
     database: State<'_, Database>,
     app: AppHandle,
 ) -> AppResult<Bootstrap> {
+    // Tras importar o crear la primera materia, el calendario oficial se carga solo.
+    if super::academic::ensure_official_now(&database)?.is_some() {
+        notify(&app, &["calendar"]);
+    }
     let connection = database.lock().map_err(|_| AppError::State)?;
     let database_path =
         Database::path(&app).map_err(|error| AppError::Validation(error.to_string()))?;

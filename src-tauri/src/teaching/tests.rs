@@ -1903,3 +1903,69 @@ fn prepares_the_utp_sheet_for_a_real_flowdesk_database_copy() {
         }
     }
 }
+
+#[test]
+fn the_official_calendar_loads_by_itself_once() {
+    use super::academic::ensure_official;
+    let database = Database::in_memory();
+    {
+        let connection = database.lock().expect("lock");
+        // Sin materias, Docencia no se usa todavía: no se carga nada.
+        assert!(ensure_official(&connection, 2026).expect("vacío").is_none());
+    }
+    let course_id = course(&database, "Desarrollo de Software VIII", "2GS131");
+    save_slot(&mut database.lock().expect("lock"), &slot(course_id, 2)).expect("slot");
+    generate_sessions(&mut database.lock().expect("lock"), course_id).expect("sessions");
+    let connection = database.lock().expect("lock");
+    let change = ensure_official(&connection, 2026)
+        .expect("carga")
+        .expect("cambio");
+    assert!(change.added > 30);
+    // Martes 3 y 10 de noviembre: sus sesiones vacías se quitan solas.
+    assert_eq!(change.removed_sessions, 2);
+    let holiday_events: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM calendar_events WHERE external_id LIKE 'academic-day:%' AND is_all_day = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(holiday_events > 20);
+    // Una segunda vez no hace nada, y lo que el docente quitó no vuelve.
+    assert!(
+        ensure_official(&connection, 2026)
+            .expect("otra vez")
+            .is_none()
+    );
+    connection
+        .execute(
+            "DELETE FROM academic_calendar WHERE title = 'Día de los Símbolos Patrios'",
+            [],
+        )
+        .unwrap();
+    assert!(
+        ensure_official(&connection, 2026)
+            .expect("sin cambios")
+            .is_none()
+    );
+    let count = |sql: &str| {
+        connection
+            .query_row(sql, [], |row| row.get::<_, i64>(0))
+            .unwrap()
+    };
+    assert_eq!(
+        count("SELECT COUNT(*) FROM academic_calendar WHERE title = 'Día de los Símbolos Patrios'"),
+        0
+    );
+    // Con el año nuevo se añaden solo los feriados del año siguiente.
+    let before = count("SELECT COUNT(*) FROM academic_calendar");
+    let change = ensure_official(&connection, 2027)
+        .expect("2027")
+        .expect("cambio 2028");
+    assert_eq!(change.added, 12);
+    assert_eq!(count("SELECT COUNT(*) FROM academic_calendar"), before + 12);
+    assert_eq!(
+        count("SELECT COUNT(*) FROM academic_calendar WHERE starts_on = '2028-01-01'"),
+        1
+    );
+}
