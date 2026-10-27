@@ -24,6 +24,9 @@ La app de escritorio **Control Docente** (Tauri, Rust, React y SQLite, unas 6 40
   - **Vista «Horas»:** la semana a escala real.
   - **Elegir por bloques:** «Desde el bloque» y «Hasta el bloque». También se puede poner otra hora a mano.
 - **Bloques horarios** (Ajustes): primer bloque, duración, descanso y cantidad. Por defecto, los de la UTP: 19 bloques de 45 minutos con 5 de descanso, de 7:00 a 22:45. Se guardan en `settings.teaching_time_blocks`.
+- **Marcar a todos** (0.8.1): cada clase de Asistencia tiene en su cabecera un menú para poner a todos presentes, ausentes, justificados o con tardanza, poner presentes solo a los que aún no tienen marca, o quitar todas las marcas.
+  - Queda pendiente hasta «Guardar cambios», para corregir antes las excepciones.
+  - Guardar asistencia en una clase la da por **realizada**. Así cuenta en los promedios, aunque se haya creado desde el horario como «No realizada».
 - **Crear sesiones de asistencia** a partir del horario:
   - una sesión por cada día de clase, con su hora;
   - un día con teoría y laboratorio es **una sola sesión**, de la primera hora a la última;
@@ -103,7 +106,7 @@ No se conservan `app_meta` ni `preferences` de Control Docente:
 
 ## Pruebas realizadas
 
-- `npm run test:rust`: **127 pruebas** (más 2 opcionales con datos reales). Las de Docencia:
+- `npm run test:rust`: **128 pruebas** (más 2 opcionales con datos reales). Las de Docencia:
   - Proyecto por materia: se crea, se renombra, se archiva y se recrea si se borró.
   - Horario:
     - clases semanales en el calendario con hora, aula, aviso y proyecto;
@@ -127,16 +130,18 @@ No se conservan `app_meta` ni `preferences` de Control Docente:
     - se rechaza si ya hay materias.
   - Teoría y laboratorio el mismo día (horario real de la UTP): dos eventos titulados por tipo y una sola sesión de 14:30 a 16:55.
   - Bloques horarios: por defecto los de la UTP; se guardan y se rechazan los que no caben en el día.
+  - Guardar asistencia da la clase por realizada solo si se registró alguna marca.
   - Fechas locales y días de la semana.
   - Cálculo de rúbricas (prueba original de Control Docente).
 - **Con tus datos reales** (pruebas opcionales, sobre copias):
   - Control Docente: 2 materias, 45 estudiantes, 45 matrículas, 29 sesiones, 606 registros de asistencia, 13 evaluaciones, 96 notas, 12 equipos y 44 integrantes, idénticos al original, más 2 proyectos y 1 entrega en el calendario.
   - La versión Django: 2 materias, 45 estudiantes, 28 sesiones y 96 notas, sin modificar el `db.sqlite3`.
 - `npm run test:onboarding`: **8 pruebas**, con Docencia en la 0.8.0.
-- `npm run test:onboarding-ui`: **31 flujos** en Chrome sin interfaz. Los 3 nuevos:
+- `npm run test:onboarding-ui`: **32 flujos** en Chrome sin interfaz. Los 3 nuevos:
   - el horario añade una clase con los datos de la materia y crea las sesiones;
   - con asistencia sin guardar, cambiar de pestaña o de sección pide confirmación;
-  - una clase de Docencia en el calendario no se edita y lleva a Docencia.
+  - una clase de Docencia en el calendario no se edita y lleva a Docencia;
+  - «Marcar a todos» rellena la clase entera (o solo los que faltan) y espera a «Guardar cambios».
 - **Migración 13 sobre una copia de tu base de FlowDesk** (versión 12):
   - `integrity_check = ok` y `foreign_key_check` vacío;
   - tus tareas intactas;

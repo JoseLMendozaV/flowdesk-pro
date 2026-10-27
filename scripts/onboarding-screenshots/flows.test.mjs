@@ -583,3 +583,29 @@ test("una clase de Docencia en el calendario se cambia desde Docencia", async ()
   }
 });
 
+test("Docencia: «Marcar a todos» marca la clase entera y espera a guardar", async () => {
+  const page = await open("target=teaching&state=seen&tab=attendance", { width: 1180, height: 760 });
+  try {
+    await page.waitFor(`${text}.includes("Control de asistencia")`);
+    const choose = (session, value) => `(() => {
+      const select = document.querySelector('select[aria-label="Marcar a todos en la clase ${session}"]');
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      setter.call(select, ${JSON.stringify(value)});
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`;
+    // La clase 6 no tiene marcas: «Sin marcar → presentes» rellena a los 11 estudiantes activos.
+    await page.evaluate(choose(6, "empty-P"));
+    await page.waitFor(`${text}.includes("11 cambios pendientes")`);
+    assert.equal((await page.evaluate(calls("teaching_save_attendance"))).length, 0, "aún no guarda");
+    // «Todos ausentes» en la clase 1 sustituye las marcas que ya tenía.
+    await page.evaluate(choose(1, "A"));
+    await page.waitFor(`${text}.includes("22 cambios pendientes")`);
+    await page.click("Guardar cambios");
+    const [{ updates }] = await page.evaluate(calls("teaching_save_attendance"));
+    assert.equal(updates.filter((update) => update.sessionId === 6 && update.status === "P").length, 11);
+    assert.equal(updates.filter((update) => update.sessionId === 1 && update.status === "A").length, 11);
+  } finally {
+    await page.close();
+  }
+});
+

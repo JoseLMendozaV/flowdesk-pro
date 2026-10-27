@@ -138,6 +138,27 @@ function AttendanceTable({
     setEdits((current) => new Map(current).set(key, status));
   }
 
+  /**
+   * Marca a todos los estudiantes de una clase con el mismo estado; `empty-P` solo rellena
+   * los que aún no tienen marca. Queda pendiente hasta «Guardar cambios», para corregir
+   * antes las excepciones.
+   */
+  function markAll(sessionId: number, choice: string) {
+    setEdits((current) => {
+      const next = new Map(current);
+      for (const student of matrix.students) {
+        const key = `${student.enrollmentId}:${sessionId}`;
+        const value = next.get(key) ?? saved.get(key) ?? "";
+        if (choice === "empty-P") {
+          if (!value) next.set(key, "P");
+        } else {
+          next.set(key, (choice === "clear" ? "" : choice) as Status);
+        }
+      }
+      return next;
+    });
+  }
+
   async function save() {
     setSaving(true);
     try {
@@ -209,6 +230,21 @@ function AttendanceTable({
                       </small>
                     )}
                     {!session.isHeld && <small className="session-pending">No realizada</small>}
+                    <select
+                      className="mark-all"
+                      value=""
+                      aria-label={`Marcar a todos en la clase ${session.number}`}
+                      title="Marcar a todos los estudiantes de esta clase"
+                      onChange={(event) => event.target.value && markAll(session.id, event.target.value)}
+                    >
+                      <option value="">Marcar a todos…</option>
+                      <option value="P">Todos presentes (P)</option>
+                      <option value="A">Todos ausentes (A)</option>
+                      <option value="J">Todos justificados (J)</option>
+                      <option value="T">Todos con tardanza (T)</option>
+                      <option value="empty-P">Sin marcar → presentes</option>
+                      <option value="clear">Quitar todas las marcas</option>
+                    </select>
                     <span className="session-actions">
                       <button title="Editar sesión" onClick={() => onEditSession(session)}>
                         <Pencil size={11} />

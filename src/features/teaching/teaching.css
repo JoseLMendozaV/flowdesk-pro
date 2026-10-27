@@ -2255,3 +2255,27 @@
   cursor: pointer;
 }
 }
+
+/* «Marcar a todos» en la cabecera de cada clase de Asistencia. */
+@layer components {
+.teaching .mark-all {
+  display: block;
+  width: 100%;
+  max-width: 112px;
+  margin: 5px auto 0;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+.teaching .mark-all:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+}

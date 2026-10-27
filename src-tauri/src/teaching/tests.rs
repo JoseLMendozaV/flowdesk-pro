@@ -723,3 +723,62 @@ fn institutional_time_blocks_default_to_the_utp_day() {
     };
     assert!(store_blocks(&connection, &too_long).is_err());
 }
+
+#[test]
+fn recording_attendance_marks_the_class_as_held() {
+    use super::{commands::store_attendance, models::AttendanceUpdate};
+    let database = Database::in_memory();
+    let course_id = course(&database, "Desarrollo de Software V", "2GS221");
+    execute(
+        &database,
+        &format!(
+            "INSERT INTO class_sessions(id, course_id, number, date) VALUES (1, {course_id}, 1, '2026-08-05');
+             INSERT INTO class_sessions(id, course_id, number, date) VALUES (2, {course_id}, 2, '2026-08-07');
+             INSERT INTO students(id, identification, name) VALUES (1, '8-111', 'Ana'), (2, '8-222', 'Bruno');
+             INSERT INTO enrollments(id, course_id, student_id) VALUES (1, {course_id}, 1), (2, {course_id}, 2);"
+        ),
+    );
+    // Toda la clase 1 presente de una vez; en la clase 2 solo se quita una marca inexistente.
+    let updates = [
+        AttendanceUpdate {
+            enrollment_id: 1,
+            session_id: 1,
+            status: "P".to_string(),
+        },
+        AttendanceUpdate {
+            enrollment_id: 2,
+            session_id: 1,
+            status: "P".to_string(),
+        },
+        AttendanceUpdate {
+            enrollment_id: 1,
+            session_id: 2,
+            status: String::new(),
+        },
+    ];
+    assert_eq!(
+        store_attendance(&mut database.lock().expect("lock"), &updates).expect("save"),
+        3
+    );
+    assert_eq!(
+        count(
+            &database,
+            "SELECT COUNT(*) FROM attendance_records WHERE session_id = 1 AND status = 'P'"
+        ),
+        2
+    );
+    assert_eq!(
+        count(&database, "SELECT is_held FROM class_sessions WHERE id = 1"),
+        1
+    );
+    assert_eq!(
+        count(&database, "SELECT is_held FROM class_sessions WHERE id = 2"),
+        0
+    );
+    let invalid = [AttendanceUpdate {
+        enrollment_id: 1,
+        session_id: 2,
+        status: "X".to_string(),
+    }];
+    assert!(store_attendance(&mut database.lock().expect("lock"), &invalid).is_err());
+}

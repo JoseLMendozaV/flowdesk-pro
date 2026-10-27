@@ -443,8 +443,17 @@ pub fn teaching_save_attendance(
     database: State<'_, Database>,
 ) -> AppResult<usize> {
     let mut connection = database.lock().map_err(|_| AppError::State)?;
+    store_attendance(&mut connection, &updates)
+}
+
+/// Guarda la asistencia. Una clase con asistencia registrada se da por realizada: las
+/// sesiones creadas desde el horario empiezan como «No realizada» y no contarían en los promedios.
+pub fn store_attendance(
+    connection: &mut Connection,
+    updates: &[AttendanceUpdate],
+) -> AppResult<usize> {
     let transaction = connection.transaction()?;
-    for update in &updates {
+    for update in updates {
         if !["", "P", "A", "J", "T"].contains(&update.status.as_str()) {
             return Err(AppError::Validation(
                 "Estado de asistencia inválido.".into(),
@@ -461,6 +470,10 @@ pub fn teaching_save_attendance(
                  VALUES (?1, ?2, ?3)
                  ON CONFLICT(enrollment_id, session_id) DO UPDATE SET status = excluded.status",
                 params![update.enrollment_id, update.session_id, update.status],
+            )?;
+            transaction.execute(
+                "UPDATE class_sessions SET is_held = 1 WHERE id = ?1 AND is_held = 0",
+                [update.session_id],
             )?;
         }
     }
