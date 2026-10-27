@@ -28,6 +28,7 @@ const CAPABILITIES: &[&str] = &[
     "recurrence",
     "trash",
     "command-palette",
+    "teaching",
 ];
 
 const WELCOME_OUTCOMES: &[&str] = &["completed", "skipped"];

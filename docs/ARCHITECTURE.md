@@ -32,6 +32,10 @@ Reglas de eliminación (los recordatorios se borran con su entidad mediante disp
 
 Tareas, proyectos y eventos pasan antes por la papelera (`commands/trash.rs`). Se guarda en `trash_items` una instantánea de las filas que se van a borrar y de las referencias que las reglas anteriores dejarán en NULL, y después se borra de verdad. Así ninguna consulta tiene que excluir lo borrado. Restaurar reinserta con los mismos identificadores, omite lo que ya no existe y vuelve a enlazar solo lo que sigue sin enlazar. Se purga a los 30 días.
 
+### Docencia
+
+`src-tauri/src/teaching/` contiene la gestión académica traída de Control Docente: sus tablas (identificadores enteros) viven en la misma base, sus comandos llevan el prefijo `teaching_` y usan la conexión con `Database::lock()`. `sync.rs` refleja cada materia como proyecto, el horario y las entregas como eventos (`source = 'teaching'`) y los seguimientos como tareas, dentro de la transacción de cada comando; los disparadores de la migración 13 limpian lo reflejado. La interfaz (`src/features/teaching/`) se carga solo al abrir Docencia y su CSS está limitado a `.teaching`. Detalles en `docs/DOCENCIA.md`.
+
 ### Repeticiones
 
 Tareas y eventos guardan su regla como JSON validado en `recurrence.rs`, con fechas en hora local de pared. Una tarea repetida es una fila por repetición: al completarla se crea la siguiente. Un evento repetido es una sola fila con excepciones, y `list_calendar` la expande en Rust para el rango pedido. El servicio de recordatorios calcula en Rust el aviso de la próxima repetición y lo reconcilia con los demás en SQL.

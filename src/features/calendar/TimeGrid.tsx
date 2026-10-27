@@ -109,8 +109,13 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
     return { day, minute: (clientY - bounds.top) / PIXELS_PER_MINUTE };
   }
 
+  /** Lo que viene de Docencia (clases, entregas) se cambia allí, no arrastrándolo. */
+  function draggable(target: DragTarget) {
+    return Boolean(onChange) && !(target.kind === "event" && target.event.source === "teaching");
+  }
+
   function startDrag(pointer: React.PointerEvent, target: DragTarget, mode: Drag["mode"]) {
-    if (!onChange || pointer.button !== 0 || (pointer.target as HTMLElement).closest("[data-no-drag]")) return;
+    if (!draggable(target) || pointer.button !== 0 || (pointer.target as HTMLElement).closest("[data-no-drag]")) return;
     pointer.stopPropagation();
     const { day, minute } = pointerPosition(pointer.clientX, pointer.clientY);
     const span = target.kind === "event" ? eventSpan(target.event) : taskSpan(target.task, untimedTaskMinute);
@@ -243,7 +248,7 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
                     <div
                       key={key}
                       onPointerDown={(pointer) => startDrag(pointer, target, "move")}
-                      className={`group/block absolute px-px ${dragging ? "z-[3] opacity-90 drop-shadow-lg" : "z-[1]"} ${onChange ? "cursor-grab" : ""}`}
+                      className={`group/block absolute px-px ${dragging ? "z-[3] opacity-90 drop-shadow-lg" : "z-[1]"} ${draggable(target) ? "cursor-grab" : ""}`}
                       style={{
                         top: item.top * PIXELS_PER_MINUTE,
                         height: Math.max(item.height * PIXELS_PER_MINUTE - 1, 16),
@@ -256,7 +261,7 @@ export function TimeGrid({ days, data, now, onOpenDay, onCreate, onCreateAllDay,
                       ) : (
                         <TaskBlock task={item.task} defaultTime={item.defaultTime && !dragging} compact={item.height < 40} onToggle={onToggleTask} onOpen={onOpenTask} />
                       )}
-                      {onChange && (
+                      {draggable(target) && (
                         <div
                           aria-hidden
                           onPointerDown={(pointer) => startDrag(pointer, target, "resize")}

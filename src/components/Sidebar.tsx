@@ -8,6 +8,7 @@ import {
   Clock3,
   Focus,
   FolderKanban,
+  GraduationCap,
   Home,
   Search,
   Settings,
@@ -28,6 +29,7 @@ const navigation = [
   { id: "time", label: "Tiempo", icon: Clock3, enabled: true },
   { id: "clipboard", label: "Portapapeles", icon: Clipboard, enabled: true },
   { id: "calendar", label: "Calendario", icon: CalendarDays, enabled: true },
+  { id: "teaching", label: "Docencia", icon: GraduationCap, enabled: true },
   { id: "workspaces", label: "Espacios", icon: BriefcaseBusiness, enabled: true },
   { label: "IA local", icon: Bot },
 ];

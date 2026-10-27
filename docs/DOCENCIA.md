@@ -1,0 +1,151 @@
+# Docencia: Control Docente integrado en FlowDesk (0.8.0)
+
+Fecha de verificación: 26 de octubre de 2026.
+
+La app de escritorio **Control Docente** (Tauri, Rust, React y SQLite, unas 6 400 líneas) pasa a ser la sección **Docencia** de FlowDesk. Se conserva todo lo que hacía y se añaden el **horario semanal** y la integración con el calendario, las tareas, los proyectos y la barra de menús.
+
+## Qué incluye
+
+**Lo que ya hacía Control Docente:**
+- **Resumen** del curso y alertas.
+- **Estudiantes:** altas, edición, activación, importación desde Excel y expediente con notas, asistencia, observaciones, compromisos y recuperaciones.
+- **Equipos**, con integrantes y líderes.
+- **Asistencia** por sesión (presente, ausente, justificada, tardanza).
+- **Evaluaciones** individuales o por equipo, con rúbricas y recálculo automático.
+- **Libro de notas** individual y por equipos.
+- **Planificación** (clases, evaluaciones, entregas, reuniones) y anuncios.
+- **Analítica** con alertas tempranas.
+- **Informes** imprimibles, en CSV y en Excel con varias hojas.
+- **Periodos académicos** y reglas de cada curso.
+
+**Lo nuevo:**
+- **Horario:** cada materia tiene franjas semanales con día, tipo (clase, teoría o laboratorio), hora, aula, fechas y aviso.
+  - **Vista «Bloques»:** como la hoja oficial de la institución. Un bloque por fila y un día por columna, con «1 DS VIII (T)(2D3)».
+  - **Vista «Horas»:** la semana a escala real.
+  - **Elegir por bloques:** «Desde el bloque» y «Hasta el bloque». También se puede poner otra hora a mano.
+- **Bloques horarios** (Ajustes): primer bloque, duración, descanso y cantidad. Por defecto, los de la UTP: 19 bloques de 45 minutos con 5 de descanso, de 7:00 a 22:45. Se guardan en `settings.teaching_time_blocks`.
+- **Crear sesiones de asistencia** a partir del horario:
+  - una sesión por cada día de clase, con su hora;
+  - un día con teoría y laboratorio es **una sola sesión**, de la primera hora a la última;
+  - las que ya existían en esos días reciben la hora si no la tenían;
+  - se renumeran por fecha y nunca se toca la asistencia registrada.
+
+## Integración con FlowDesk
+
+| De Docencia | En FlowDesk |
+| --- | --- |
+| Materia | Un **proyecto** con el mismo nombre (y grupo). Renombrarla o archivarla lo actualiza. Desde Docencia, el botón de carpeta lo abre |
+| Franja del horario | Un **evento semanal** entre sus fechas, con aula y aviso. Se titula «… · Teoría» o «… · Laboratorio» según su tipo. Aparece en el calendario, en Inicio y junto al icono de la barra de menús («Desarrollo de Software VIII · Teoría en 12 min») |
+| Evaluación activa con fecha | Un evento «Entrega: …» en el calendario |
+| Planificación | Un evento en el calendario, con el aviso de «Recordar antes» |
+| Observación con fecha de seguimiento | Una **tarea** «Seguimiento: estudiante», que se resuelve en ambos sentidos: completarla en Tareas resuelve la observación, y resolverla en Docencia completa la tarea |
+
+**Lo reflejado se cambia desde Docencia.**
+- Los eventos llevan `source = 'teaching'`.
+- El diálogo del calendario lo explica y ofrece «Abrir Docencia». Arrastrar está desactivado.
+- En una clase del horario se puede quitar una repetición concreta (un festivo). Esa excepción se conserva mientras no cambie el inicio de la franja.
+- Rust lo exige también fuera de la interfaz (`modify_event` y `remove_event`).
+
+**Lo reflejado desaparece con su origen,** también en los borrados en cascada (disparadores de la migración 13).
+
+**Cambios sin guardar.** Si Asistencia o Calificaciones tienen cambios sin guardar, cambiar de pestaña, de materia o de sección de FlowDesk pide confirmación (`leaveGuard` en `appStore`).
+
+**Paleta ⌘K.** Incluye «Docencia», «Mi horario de clases» y las materias como resultados.
+
+## Importación
+
+**Sin configuración: tus datos de Control Docente.**
+- La bienvenida de Docencia detecta `~/Library/Application Support/com.jmendoza.controldocente/control-docente.sqlite3` y la importa con un botón.
+- También se puede elegir otro archivo, o importar la base de la **versión Django** (`db.sqlite3`).
+- **El original nunca se modifica:** se abre en solo lectura y se copia con `VACUUM INTO` (incluido lo pendiente en su WAL) a `teaching-backups/` dentro de los datos de FlowDesk. Se importa desde esa copia.
+- Se conservan los identificadores, así que notas, asistencia, equipos y rúbricas mantienen sus relaciones.
+- Al terminar se crean los proyectos y se reflejan las entregas, la planificación y los seguimientos.
+- Solo se puede importar con Docencia vacía.
+
+**Respaldo.** Copia toda la base de FlowDesk con `VACUUM INTO`, que es coherente aunque la base esté en uso.
+
+Tras importar, Control Docente puede dejar de usarse; su base sigue intacta por si quieres volver a ella.
+
+## Arquitectura
+
+- **Rust** (`src-tauri/src/teaching/`):
+  - `commands.rs`: los 47 comandos de Control Docente con el prefijo `teaching_`. Usan la conexión de FlowDesk mediante `Database::lock()`.
+  - `schedule.rs`: horario y sesiones.
+  - `sync.rs`: reflejo en proyectos, calendario y tareas, dentro de la misma transacción.
+  - `legacy.rs`: importaciones y respaldo.
+  - `error.rs` y `models.rs`.
+- **Interfaz** (`src/features/teaching/`):
+  - `TeachingPage` se carga solo al abrir Docencia (`React.lazy`).
+  - Las pantallas son las de Control Docente con su CSS, limitado a `.teaching`, en la capa `components` y con los colores de FlowDesk (también en oscuro).
+  - framer-motion se sustituye por un adaptador mínimo (`lib/motion.tsx`).
+  - Imprimir un informe oculta el resto de la ventana (`body.printing-report`).
+- **Permisos:** la ventana principal puede usar también el diálogo de guardar (exportaciones y respaldos).
+
+## Persistencia (migración 13)
+
+- **Tablas de Control Docente**, con los mismos nombres y columnas:
+  - `academic_periods`, `courses`, `students`, `enrollments`;
+  - `student_groups`, `group_memberships`, `class_sessions`, `attendance_records`;
+  - `evaluations`, `grades`, `group_grades`, `rubric_criteria`, `rubric_scores`, `recovery_grades`;
+  - `student_observations`, `academic_events`, `announcements`, `audit_logs`.
+- **Columnas de integración:**
+  - `courses.project_id`;
+  - `evaluations.calendar_event_id`;
+  - `academic_events.calendar_event_id`;
+  - `student_observations.task_id`.
+- **`course_schedule`**, para el horario, con `kind` (`class`, `theory` o `lab`).
+- **Disparadores** de limpieza y de resolución de seguimientos.
+
+No se conservan `app_meta` ni `preferences` de Control Docente:
+- la importación queda marcada en `settings` (`teaching_imported`);
+- la materia y la pestaña abiertas se guardan en la interfaz;
+- el tema sigue al de macOS.
+
+## Pruebas realizadas
+
+- `npm run test:rust`: **127 pruebas** (más 2 opcionales con datos reales). Las de Docencia:
+  - Proyecto por materia: se crea, se renombra, se archiva y se recrea si se borró.
+  - Horario:
+    - clases semanales en el calendario con hora, aula, aviso y proyecto;
+    - nada fuera del periodo;
+    - editar mueve la serie y borrar la quita.
+  - Desde el calendario:
+    - solo se quita una clase concreta;
+    - editar o borrar la serie se rechaza;
+    - el festivo se conserva al volver a guardar la franja.
+  - Sesiones desde el horario:
+    - crea las que faltan y pone hora a la existente;
+    - renumera por fecha sin tocar la asistencia;
+    - no duplica al repetirlo;
+    - avisa si no hay horario.
+  - Entregas y planificación en el calendario: con hora, de día completo y con aviso; desaparecen sin fecha o al borrar.
+  - Seguimientos como tareas, resueltos en ambos sentidos.
+  - Importación de Control Docente:
+    - el original no cambia, byte a byte;
+    - queda una copia;
+    - se conservan identificadores, notas y asistencia;
+    - se rechaza si ya hay materias.
+  - Teoría y laboratorio el mismo día (horario real de la UTP): dos eventos titulados por tipo y una sola sesión de 14:30 a 16:55.
+  - Bloques horarios: por defecto los de la UTP; se guardan y se rechazan los que no caben en el día.
+  - Fechas locales y días de la semana.
+  - Cálculo de rúbricas (prueba original de Control Docente).
+- **Con tus datos reales** (pruebas opcionales, sobre copias):
+  - Control Docente: 2 materias, 45 estudiantes, 45 matrículas, 29 sesiones, 606 registros de asistencia, 13 evaluaciones, 96 notas, 12 equipos y 44 integrantes, idénticos al original, más 2 proyectos y 1 entrega en el calendario.
+  - La versión Django: 2 materias, 45 estudiantes, 28 sesiones y 96 notas, sin modificar el `db.sqlite3`.
+- `npm run test:onboarding`: **8 pruebas**, con Docencia en la 0.8.0.
+- `npm run test:onboarding-ui`: **31 flujos** en Chrome sin interfaz. Los 3 nuevos:
+  - el horario añade una clase con los datos de la materia y crea las sesiones;
+  - con asistencia sin guardar, cambiar de pestaña o de sección pide confirmación;
+  - una clase de Docencia en el calendario no se edita y lleva a Docencia.
+- **Migración 13 sobre una copia de tu base de FlowDesk** (versión 12):
+  - `integrity_check = ok` y `foreign_key_check` vacío;
+  - tus tareas intactas;
+  - disparadores creados.
+- `npm run test:recurrence`: incluye los nombres cortos del horario por bloques («Desarrollo de Software VIII» → «DS VIII»).
+- **Revisión visual** en claro y oscuro de todas las pestañas con datos de demostración (estudiantes ficticios). El horario de demostración sigue la hoja oficial de la UTP.
+
+## Limitaciones
+
+- La importación es inicial: se hace una vez, con Docencia vacía. No sincroniza con Control Docente si se sigue usando.
+- Los anuncios no se envían por correo; como en Control Docente, quedan registrados.
+- Las rúbricas y recuperaciones funcionan igual que en Control Docente; no tienen equivalente en el resto de FlowDesk.

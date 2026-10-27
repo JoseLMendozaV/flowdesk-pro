@@ -24,6 +24,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         12,
         include_str!("../../migrations/0012_start_dates_tray_events.sql"),
     ),
+    (13, include_str!("../../migrations/0013_teaching.sql")),
 ];
 
 #[cfg(test)]
@@ -88,6 +89,15 @@ impl Database {
         operation(&connection).map_err(|error| error.to_string())
     }
 
+    /// Acceso directo a la conexión para módulos con su propio tipo de error (Docencia).
+    /// Mientras se usa, ninguna otra operación puede tocar la base: no llames desde dentro
+    /// a funciones que la vuelvan a pedir.
+    pub fn lock(&self) -> Result<std::sync::MutexGuard<'_, Connection>, String> {
+        self.connection
+            .lock()
+            .map_err(|_| "La base de datos no está disponible".to_string())
+    }
+
     pub fn with_connection_mut<T>(
         &self,
         operation: impl FnOnce(&mut Connection) -> rusqlite::Result<T>,
@@ -127,7 +137,6 @@ impl Database {
         }
     }
 
-    #[allow(dead_code)]
     pub fn path(app: &AppHandle) -> Result<PathBuf, tauri::Error> {
         Ok(app.path().app_data_dir()?.join("flowdesk.sqlite3"))
     }

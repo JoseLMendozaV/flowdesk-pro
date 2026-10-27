@@ -179,6 +179,8 @@ export const events = [
   { id: "e4", title: "Revisión del panel", day: -1, start: [12, 0], end: [13, 0], project: "p-app", location: null },
   { id: "e5", title: "Llamada con el congreso", day: 3, start: [16, 30], end: [17, 0], project: "p-paper", location: null },
   { id: "e6", title: "Revisión de prácticas", day: 0, start: [13, 0], end: [14, 0], project: "p-course", location: null },
+  // Una clase del horario de Docencia: se cambia desde allí.
+  { id: "e7", title: "Desarrollo de Software VIII", day: 0, start: [19, 30], end: [22, 0], project: "p-course", location: "Laboratorio 2", weekly: true, teaching: true },
 ].map((event) => {
   const project = projectById[event.project];
   return {
@@ -196,6 +198,7 @@ export const events = [
     recurrence: "weekly" in event ? { frequency: "weekly", interval: 1, weekdays: [], fromCompletion: false, until: null } : null,
     // Las semanales empezaron la semana pasada: la de esta semana no es la primera.
     seriesStartsAt: at(event.day - ("weekly" in event ? 7 : 0), event.start[0], event.start[1]),
+    source: "teaching" in event ? "teaching" : "local",
   };
 });
 
@@ -318,5 +321,5 @@ export const shortcuts = [
 export const capabilities = [
   "dashboard", "tasks", "projects", "notes", "global-shortcuts", "pomodoro", "time-tracking",
   "app-tracking", "calendar", "reminders", "workspaces", "clipboard", "menu-bar", "updates",
-  "recurrence", "trash", "command-palette",
+  "recurrence", "trash", "command-palette", "teaching",
 ];

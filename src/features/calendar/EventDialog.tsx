@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Trash2, X } from "lucide-react";
+import { GraduationCap, Trash2, X } from "lucide-react";
 import { useEscape } from "../../hooks/useEscape";
 import { flowdeskApi } from "../../services/flowdeskApi";
 import { dateInputValue, errorMessage, formatDate, timeInputValue } from "../../services/format";
 import type { CalendarEvent, EventInput, EventScope } from "../../types/calendar";
 import type { RecurrenceRule } from "../../types/recurrence";
+import { useAppStore } from "../../stores/appStore";
 import { useProjects } from "../projects/useProjects";
 import { RecurrenceField } from "../recurrence/RecurrenceField";
 import { followStart } from "../recurrence/recurrenceRules";
@@ -80,6 +81,10 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
   const offerUndo = useUndoStore((state) => state.offer);
   // Editar una repetición de una serie pregunta a cuáles se aplica el cambio.
   const repeating = Boolean(event?.recurrence);
+  // Las clases del horario, las entregas y la planificación se cambian desde Docencia;
+  // aquí solo se puede quitar una repetición (un festivo, por ejemplo).
+  const fromTeaching = event?.source === "teaching";
+  const openTeaching = useAppStore((state) => state.selectSection);
   const isFirstOccurrence = !event || event.startsAt === event.seriesStartsAt;
 
   useEffect(() => {
@@ -177,7 +182,26 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
           </button>
         </header>
 
-        <div className="space-y-3">
+        {fromTeaching && (
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-[var(--accent-soft)] px-3 py-2 text-[11px] text-[var(--accent)]">
+            <GraduationCap className="size-4 flex-none" />
+            <span className="flex-1">
+              Viene de Docencia. Para cambiarlo, edítalo allí{repeating ? "; aquí puedes quitar una clase concreta, como un festivo" : ""}.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                openTeaching("teaching");
+              }}
+              className="flex-none font-medium hover:underline"
+            >
+              Abrir Docencia
+            </button>
+          </div>
+        )}
+
+        <fieldset disabled={fromTeaching} className="min-w-0 space-y-3 disabled:opacity-60">
           <input ref={titleRef} value={title} onChange={(changeEvent) => setTitle(changeEvent.target.value)} maxLength={200} placeholder="Título del evento" aria-label="Título" className={fieldClass} />
           <label className="flex cursor-pointer items-center gap-2 text-[11px]">
             <input type="checkbox" checked={isAllDay} onChange={(changeEvent) => setIsAllDay(changeEvent.target.checked)} className="accent-[var(--accent)]" />
@@ -230,7 +254,7 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
           />
           <input value={location} onChange={(changeEvent) => setLocation(changeEvent.target.value)} maxLength={200} placeholder="Ubicación (opcional)" aria-label="Ubicación" className={fieldClass} />
           <textarea value={description} onChange={(changeEvent) => setDescription(changeEvent.target.value)} maxLength={4000} rows={3} placeholder="Notas (opcional)" aria-label="Notas" className={`${fieldClass} resize-none leading-5`} />
-        </div>
+        </fieldset>
 
         {error && <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-red-500">{error}</p>}
 
@@ -239,7 +263,8 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
             <ScopeChoices
               question={pendingScope.action === "delete" ? "Este evento se repite. ¿Qué quieres eliminar?" : "Este evento se repite. ¿A cuáles aplicas el cambio?"}
               allowThis={!(pendingScope.action === "save" && pendingScope.ruleChanged)}
-              allowFollowing={!isFirstOccurrence}
+              allowFollowing={!isFirstOccurrence && !fromTeaching}
+              allowAll={!fromTeaching}
               onChoose={applyScope}
               onCancel={() => setPendingScope(null)}
             />
@@ -247,7 +272,7 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
         )}
 
         <footer className="mt-5 flex items-center gap-2">
-          {event && (
+          {event && (!fromTeaching || repeating) && (
             <button
               type="button"
               onClick={() => (repeating ? setPendingScope({ action: "delete" }) : void remove())}
@@ -260,7 +285,7 @@ export function EventDialog({ event, draft, onClose }: EventDialogProps) {
           )}
           <span className="flex-1" />
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-xs text-[var(--muted)] hover:bg-[var(--hover)]">Cancelar</button>
-          <button type="submit" disabled={!title.trim() || saving || Boolean(pendingScope)} className="rounded-lg bg-[var(--accent)] px-3.5 py-2 text-xs font-medium text-white disabled:opacity-50">
+          <button type="submit" disabled={!title.trim() || saving || Boolean(pendingScope) || fromTeaching} className="rounded-lg bg-[var(--accent)] px-3.5 py-2 text-xs font-medium text-white disabled:opacity-50">
             {saving ? "Guardando…" : event ? "Guardar cambios" : "Crear evento"}
           </button>
         </footer>

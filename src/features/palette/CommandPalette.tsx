@@ -9,6 +9,7 @@ import {
   Clock3,
   Focus,
   FolderKanban,
+  GraduationCap,
   Home,
   Layers,
   ListTodo,
@@ -28,6 +29,8 @@ import type { Note } from "../../types/dashboard";
 import type { ProjectSummary } from "../../types/projects";
 import type { TaskSummary } from "../../types/tasks";
 import type { Workspace } from "../../types/workspaces";
+import type { CourseSummary } from "../teaching/bindings/CourseSummary";
+import { api as teachingApi } from "../teaching/lib/api";
 import { normalizeSearch, matchesQuery } from "./paletteSearch";
 
 type Command = {
@@ -59,6 +62,9 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
   const requestNewEvent = useAppStore((state) => state.requestNewEvent);
   const focusTask = useAppStore((state) => state.focusTask);
   const focusProject = useAppStore((state) => state.focusProject);
+  const setTeachingCourseId = useAppStore((state) => state.setTeachingCourseId);
+  const setTeachingTab = useAppStore((state) => state.setTeachingTab);
+  const [courses, setCourses] = useState<CourseSummary[]>([]);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -75,6 +81,10 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
     inputRef.current?.focus();
     void flowdeskApi.projects(false).then(setProjects).catch(() => setProjects([]));
     void flowdeskApi.notes(false).then(setNotes).catch(() => setNotes([]));
+    void teachingApi
+      .bootstrap()
+      .then((data) => setCourses(data.courses.filter((course) => !course.isArchived)))
+      .catch(() => setCourses([]));
     void flowdeskApi
       .workspaces()
       .then((state) => {
@@ -146,6 +156,18 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       { id: "go-clipboard", group: "Ir a", label: "Portapapeles", icon: Clipboard, run: go("clipboard") },
       { id: "go-calendar", group: "Ir a", label: "Calendario", icon: CalendarDays, keywords: "agenda", run: go("calendar") },
       { id: "go-workspaces", group: "Ir a", label: "Espacios", icon: BriefcaseBusiness, run: go("workspaces") },
+      { id: "go-teaching", group: "Ir a", label: "Docencia", icon: GraduationCap, keywords: "materias cursos estudiantes notas asistencia control docente", run: go("teaching") },
+      {
+        id: "go-schedule",
+        group: "Ir a",
+        label: "Mi horario de clases",
+        icon: CalendarDays,
+        keywords: "docencia materias semana",
+        run: () => {
+          setTeachingTab("schedule");
+          selectSection("teaching");
+        },
+      },
       { id: "go-trash", group: "Ir a", label: "Papelera", icon: Trash2, keywords: "borrado eliminado recuperar restaurar", run: go("trash") },
     ];
     const switchTo = (workspaceId: string | null) => async () => {
@@ -170,7 +192,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
               })),
           ];
     return [...actions, ...sections, ...spaces];
-  }, [activeWorkspaceId, openPreferences, openQuickTask, openTasks, requestNewEvent, selectSection, workspaces]);
+  }, [activeWorkspaceId, openPreferences, openQuickTask, openTasks, requestNewEvent, selectSection, setTeachingTab, workspaces]);
 
   const results = useMemo<Command[]>(() => {
     const normalized = normalizeSearch(query);
@@ -206,8 +228,23 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
         icon: StickyNote,
         run: () => flowdeskApi.showNote(note.id),
       }));
-    return [...fixed, ...taskResults, ...projectResults, ...noteResults];
-  }, [commands, focusProject, focusTask, notes, projects, query, tasks]);
+    const courseResults: Command[] = courses
+      .filter((course) => matchesQuery(normalized, `${course.title} ${course.code} ${course.groupName}`))
+      .slice(0, RESULT_LIMIT)
+      .map((course) => ({
+        id: `course-${course.id}`,
+        group: "Materias",
+        label: course.title,
+        detail: [course.code, course.groupName].filter(Boolean).join(" · "),
+        icon: GraduationCap,
+        run: () => {
+          setTeachingCourseId(course.id);
+          setTeachingTab("dashboard");
+          selectSection("teaching");
+        },
+      }));
+    return [...fixed, ...taskResults, ...courseResults, ...projectResults, ...noteResults];
+  }, [commands, courses, focusProject, focusTask, notes, projects, query, selectSection, setTeachingCourseId, setTeachingTab, tasks]);
 
   useEffect(() => setActiveIndex(0), [query]);
   useEffect(() => {

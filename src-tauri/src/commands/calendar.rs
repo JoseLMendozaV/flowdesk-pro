@@ -21,7 +21,7 @@ const NEXT_OCCURRENCE_WINDOW: i64 = 400 * 86_400;
 
 const EVENT_SELECT: &str = "SELECT e.id, e.title, e.description, e.project_id, p.name, p.color,
             e.starts_at, e.ends_at, e.is_all_day, e.location, e.reminder_minutes,
-            e.recurrence_rule, e.recurrence_exceptions
+            e.recurrence_rule, e.recurrence_exceptions, e.source
      FROM calendar_events e LEFT JOIN projects p ON p.id = e.project_id";
 
 struct ValidEvent {
@@ -69,6 +69,7 @@ fn map_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredEvent> {
             reminder_minutes: row.get(10)?,
             recurrence: RecurrenceRule::parse(row.get::<_, Option<String>>(11)?.as_deref()),
             series_starts_at: starts_at,
+            source: row.get(13)?,
         },
         exceptions: parse_exceptions(&row.get::<_, String>(12)?),
     })
@@ -417,6 +418,9 @@ pub fn modify_event(
     occurrence_start: Option<i64>,
 ) -> Result<CalendarEvent, String> {
     let stored = load_stored(database, event_id)?;
+    if stored.event.source == crate::teaching::sync::SOURCE {
+        return Err("Este evento viene de Docencia: cámbialo desde allí".to_string());
+    }
     let mut event = validate_event(database, input)?;
     let series_start = stored.event.starts_at;
     let (Some(rule), Some(occurrence)) = (&stored.event.recurrence, occurrence_start) else {
@@ -502,6 +506,12 @@ pub fn remove_event(
     occurrence_start: Option<i64>,
 ) -> Result<String, String> {
     let stored = load_stored(database, event_id)?;
+    // De Docencia solo se puede quitar una clase concreta (un festivo); lo demás, desde allí.
+    if stored.event.source == crate::teaching::sync::SOURCE
+        && !(stored.event.recurrence.is_some() && scope == Some(EventScope::This))
+    {
+        return Err("Este evento viene de Docencia: quítalo desde allí".to_string());
+    }
     let now = Utc::now().timestamp();
     database.with_connection_mut(|connection| {
         let transaction = connection.transaction()?;

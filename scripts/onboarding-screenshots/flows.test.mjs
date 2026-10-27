@@ -54,19 +54,19 @@ test("la bienvenida avanza, retrocede, salta a un paso y se completa", async () 
   try {
     await headingIs(page, "¡Bienvenido a FlowDesk Pro!");
     const [seen] = await page.evaluate(calls("mark_features_seen"));
-    assert.equal(Object.keys(seen.features).length, 12, "presenta las 12 funciones disponibles");
+    assert.equal(Object.keys(seen.features).length, 13, "presenta las 13 funciones disponibles");
     assert.ok(!("local-ai" in seen.features));
 
     await page.click("Comenzar recorrido");
     await headingIs(page, "Inicio");
-    assert.match(await page.evaluate(text), /Paso 1 de 13/);
+    assert.match(await page.evaluate(text), /Paso 1 de 14/);
     await page.key("ArrowRight");
     await headingIs(page, "Paleta de comandos");
     assert.equal((await page.evaluate(calls("record_onboarding_step"))).at(-1).stepId, "feature:command-palette");
     assert.equal(await page.evaluate("document.activeElement?.hasAttribute('data-step-heading')"), true, "el foco va al título para VoiceOver");
     await page.key("ArrowLeft");
     await headingIs(page, "Inicio");
-    await page.click("Ir al paso 13: Todo listo");
+    await page.click("Ir al paso 14: Todo listo");
     await headingIs(page, "¡Todo listo!");
     await page.click("Comenzar a trabajar");
     await page.waitFor(`${calls("close_onboarding")}.length === 1`);
@@ -148,14 +148,14 @@ test("las novedades muestran solo lo nuevo o mejorado y se marcan como vistas", 
   try {
     await headingIs(page, "¡FlowDesk Pro tiene novedades!");
     const body = await page.evaluate(text);
-    for (const title of ["Agenda y recordatorios", "Espacios de trabajo", "Historial del portapapeles", "Paleta de comandos", "Papelera"]) assert.ok(body.includes(title));
-    assert.equal((body.match(/Nuevo\b/g) ?? []).length, 5);
+    for (const title of ["Agenda y recordatorios", "Espacios de trabajo", "Historial del portapapeles", "Paleta de comandos", "Papelera", "Docencia"]) assert.ok(body.includes(title));
+    assert.equal((body.match(/Nuevo\b/g) ?? []).length, 6);
     assert.equal((body.match(/Mejorado/g) ?? []).length, 5);
     assert.ok(!body.includes("Proyectos\nMejorado"), "Proyectos no cambió");
     assert.equal((await page.evaluate(calls("record_onboarding_event")))[0].event, "whats_new_shown");
     assert.equal((await page.evaluate(calls("mark_features_seen"))).length, 1);
     await page.click("Ver novedades");
-    await page.waitFor(`${text}.includes("Novedad 1 de 11")`);
+    await page.waitFor(`${text}.includes("Novedad 1 de 12")`);
   } finally {
     await page.close();
   }
@@ -507,6 +507,77 @@ test("una tarea que empieza otro día lo indica y su detalle muestra la fecha de
     await page.waitFor(`${text}.includes("Empieza pasado mañana") || /Empieza \\w+/.test(${text})`);
     await page.evaluate(clickRole("button", "Planificar las prácticas"));
     await page.waitFor(`${text}.includes("Hasta ese día no aparece en Hoy.")`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("Docencia: el horario añade clases con los datos de la materia y crea las sesiones", async () => {
+  const page = await open("target=teaching&state=seen&tab=schedule", { width: 1180, height: 760 });
+  try {
+    // Vista por bloques, como la hoja oficial: el bloque de 2:30 del martes es teoría en 2D3.
+    await page.waitFor(`${text}.includes("Horario de clases") && ${text}.includes("2:30 – 3:15")`);
+    assert.ok((await page.evaluate(text)).includes("(T)(2D3)"));
+    await page.click("Añadir clase");
+    await page.waitFor(`${text}.includes("Añadir al horario")`);
+    // Por bloques: elegir del de 7:30 p. m. al de 9:10 p. m.
+    await page.evaluate(`(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      const pick = (label, value) => {
+        const select = document.querySelector('select[aria-label="' + label + '"]');
+        setter.call(select, value);
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      pick('Bloque inicial', '19:30');
+      pick('Bloque final', '21:55');
+    })()`);
+    await page.click("Añadir al horario");
+    const [{ input }] = await page.evaluate(calls("teaching_save_schedule_slot"));
+    // Toma el aula, el tipo y las fechas por defecto de la otra clase de la materia.
+    assert.deepEqual(
+      { courseId: input.courseId, kind: input.kind, weekday: input.weekday, startTime: input.startTime, endTime: input.endTime, room: input.room, startsOn: input.startsOn, reminderMinutes: input.reminderMinutes },
+      { courseId: 1, kind: "theory", weekday: 1, startTime: "19:30", endTime: "21:55", room: "2D3", startsOn: "2026-08-03", reminderMinutes: 10 },
+    );
+    await page.click("Crear sesiones de asistencia");
+    assert.deepEqual(await page.evaluate(calls("teaching_generate_sessions")), [{ courseId: 1 }]);
+    await page.waitFor(`${text}.includes("30 sesiones nuevas")`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("Docencia: con asistencia sin guardar, cambiar de pestaña o de sección pide confirmación", async () => {
+  const page = await open("target=teaching&state=seen&tab=attendance", { width: 1180, height: 760 });
+  try {
+    await page.waitFor(`${text}.includes("Control de asistencia")`);
+    await page.evaluate(`(() => {
+      window.confirm = () => (window.__confirmed = (window.__confirmed ?? 0) + 1) && false;
+      const select = document.querySelector('.matrix-table tbody select');
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      setter.call(select, select.value === 'A' ? 'P' : 'A');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await page.waitFor(`${text}.includes("1 cambios pendientes")`);
+    await page.click("Informes");
+    await page.click("Tareas");
+    assert.equal(await page.evaluate("window.__confirmed"), 2, "pregunta en los dos casos");
+    assert.ok((await page.evaluate(text)).includes("Control de asistencia"), "se queda en Asistencia");
+    await page.evaluate("window.confirm = () => true");
+    await page.click("Informes");
+    await page.waitFor(`${text}.includes("Exportar Excel")`);
+  } finally {
+    await page.close();
+  }
+});
+
+test("una clase de Docencia en el calendario se cambia desde Docencia", async () => {
+  const page = await open("target=calendar&state=seen", { width: 1180, height: 760 });
+  try {
+    await page.evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.startsWith('Desarrollo de Software VIII'))?.click()");
+    await page.waitFor(`${text}.includes("Viene de Docencia")`);
+    assert.equal(await page.evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('Guardar cambios')).disabled"), true);
+    await page.click("Abrir Docencia");
+    await page.waitFor(`document.querySelector('h1')?.textContent === "Docencia"`);
   } finally {
     await page.close();
   }

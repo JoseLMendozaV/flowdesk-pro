@@ -3,7 +3,19 @@ import { persist } from "zustand/middleware";
 import type { CalendarMode } from "../types/calendar";
 import type { TaskView } from "../types/tasks";
 
-export type Section = "dashboard" | "tasks" | "projects" | "notes" | "focus" | "time" | "calendar" | "workspaces" | "clipboard" | "trash";
+export type Section = "dashboard" | "tasks" | "projects" | "notes" | "focus" | "time" | "calendar" | "workspaces" | "clipboard" | "trash" | "teaching";
+export type TeachingTab =
+  | "dashboard"
+  | "schedule"
+  | "students"
+  | "groups"
+  | "attendance"
+  | "evaluations"
+  | "grades"
+  | "planning"
+  | "analytics"
+  | "reports"
+  | "settings";
 export type TaskLayout = "list" | "kanban";
 
 type AppState = {
@@ -27,6 +39,14 @@ type AppState = {
   focusedTaskId: string | null;
   /** Proyecto que debe abrirse al llegar a Proyectos. */
   focusedProjectId: string | null;
+  /** Materia y pestaña abiertas en Docencia. */
+  teachingCourseId: number | null;
+  teachingTab: TeachingTab;
+  /**
+   * Comprobación antes de salir de una sección con cambios sin guardar (Docencia): si
+   * devuelve `false`, el cambio de sección se cancela.
+   */
+  leaveGuard: (() => boolean) | null;
   toggleRightPanel: () => void;
   openQuickTask: () => void;
   closeQuickTask: () => void;
@@ -46,11 +66,21 @@ type AppState = {
   clearFocusedTask: () => void;
   focusProject: (projectId: string) => void;
   clearFocusedProject: () => void;
+  setTeachingCourseId: (courseId: number | null) => void;
+  setTeachingTab: (tab: TeachingTab) => void;
+  setLeaveGuard: (guard: (() => boolean) | null) => void;
 };
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => {
+      /** Cambia de sección si la actual lo permite (cambios sin guardar). */
+      const leaveTo = (selectedSection: Section, extra: Partial<AppState> = {}) => {
+        const { leaveGuard, selectedSection: current } = get();
+        if (selectedSection !== current && leaveGuard && !leaveGuard()) return;
+        set({ selectedSection, ...extra });
+      };
+      return {
       selectedSection: "dashboard",
       rightPanelVisible: true,
       quickTaskOpen: false,
@@ -65,6 +95,9 @@ export const useAppStore = create<AppState>()(
       untimedTaskMinute: 12 * 60,
       focusedTaskId: null,
       focusedProjectId: null,
+      teachingCourseId: null,
+      teachingTab: "dashboard",
+      leaveGuard: null,
       toggleRightPanel: () =>
         set((state) => ({ rightPanelVisible: !state.rightPanelVisible })),
       openQuickTask: () => set({ quickTaskOpen: true }),
@@ -72,22 +105,26 @@ export const useAppStore = create<AppState>()(
       openPreferences: () => set({ preferencesOpen: true }),
       closePreferences: () => set({ preferencesOpen: false }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
-      requestNewEvent: () => set({ selectedSection: "calendar", newEventPending: true }),
+      requestNewEvent: () => leaveTo("calendar", { newEventPending: true }),
       clearNewEventRequest: () => set({ newEventPending: false }),
       refreshDashboard: () =>
         set((state) => ({ dashboardRevision: state.dashboardRevision + 1 })),
-      selectSection: (selectedSection) => set({ selectedSection }),
+      selectSection: (selectedSection) => leaveTo(selectedSection),
       setTaskView: (taskView) => set({ taskView }),
       setTaskLayout: (taskLayout) => set({ taskLayout }),
       setCalendarMode: (calendarMode) => set({ calendarMode }),
       setUntimedTaskMinute: (untimedTaskMinute) => set({ untimedTaskMinute }),
-      openTasks: (taskView) => set({ selectedSection: "tasks", taskView }),
+      openTasks: (taskView) => leaveTo("tasks", { taskView }),
       // «Todas»: la tarea puede no vencer hoy.
-      focusTask: (focusedTaskId) => set({ selectedSection: "tasks", taskView: "all", focusedTaskId }),
+      focusTask: (focusedTaskId) => leaveTo("tasks", { taskView: "all", focusedTaskId }),
       clearFocusedTask: () => set({ focusedTaskId: null }),
-      focusProject: (focusedProjectId) => set({ selectedSection: "projects", focusedProjectId }),
+      focusProject: (focusedProjectId) => leaveTo("projects", { focusedProjectId }),
       clearFocusedProject: () => set({ focusedProjectId: null }),
-    }),
+      setTeachingCourseId: (teachingCourseId) => set({ teachingCourseId }),
+      setTeachingTab: (teachingTab) => set({ teachingTab }),
+      setLeaveGuard: (leaveGuard) => set({ leaveGuard }),
+      };
+    },
     {
       name: "flowdesk-ui",
       partialize: (state) => ({
@@ -95,6 +132,8 @@ export const useAppStore = create<AppState>()(
         taskLayout: state.taskLayout,
         calendarMode: state.calendarMode,
         untimedTaskMinute: state.untimedTaskMinute,
+        teachingCourseId: state.teachingCourseId,
+        teachingTab: state.teachingTab,
       }),
     },
   ),

@@ -294,6 +294,7 @@ mod tests {
             reminder_minutes: None,
             recurrence: None,
             series_starts_at: starts_at,
+            source: "local".to_string(),
         }
     }
 

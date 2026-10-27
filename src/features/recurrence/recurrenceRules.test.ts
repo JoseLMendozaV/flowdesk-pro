@@ -45,3 +45,11 @@ test("la paleta ignora tildes, mayúsculas y orden de palabras", () => {
   assert.ok(!matchesQuery(query, "Clase de programación"));
   assert.ok(matchesQuery(normalizeSearch("programacion"), "Programación"));
 });
+
+test("nombres cortos de materias para el horario por bloques", async () => {
+  const { shortCourseName } = await import("../teaching/lib/timeBlocks.ts");
+  assert.equal(shortCourseName("Desarrollo de Software VIII"), "DS VIII");
+  assert.equal(shortCourseName("Desarrollo de Software V"), "DS V");
+  assert.equal(shortCourseName("Cálculo"), "Cálculo");
+  assert.equal(shortCourseName("Bases de Datos 2"), "BD 2");
+});

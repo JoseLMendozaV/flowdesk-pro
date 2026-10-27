@@ -16,6 +16,7 @@ export type FeatureIconName =
   | "menu-bar"
   | "search"
   | "trash"
+  | "teaching"
   | "ai";
 
 export type FeatureTone = "blue" | "violet" | "amber" | "emerald" | "orange" | "rose" | "sky" | "slate";

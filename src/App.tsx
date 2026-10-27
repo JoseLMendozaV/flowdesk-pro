@@ -22,6 +22,8 @@ import { useAppStore } from "./stores/appStore";
 
 // Ventanas propias: su código (el editor de notas, la guía) se carga solo al abrirlas.
 const FloatingNote = lazy(() => import("./features/notes/FloatingNote").then((module) => ({ default: module.FloatingNote })));
+// Docencia (la antigua Control Docente) se carga al abrirla: no pesa en el resto de la app.
+const TeachingPage = lazy(() => import("./features/teaching/TeachingPage"));
 const OnboardingWindow = lazy(() =>
   import("./features/onboarding/components/OnboardingWindow").then((module) => ({ default: module.OnboardingWindow })),
 );
@@ -73,6 +75,7 @@ function MainApplication() {
       if (event.payload === "workspaces") selectSection("workspaces");
       if (event.payload === "clipboard") selectSection("clipboard");
       if (event.payload === "trash") selectSection("trash");
+      if (event.payload === "teaching") selectSection("teaching");
     });
     const refresh = Promise.all([listen("flowdesk://activated", refreshDashboard)]);
     return () => {
@@ -116,6 +119,10 @@ function MainApplication() {
           <ClipboardPage />
         ) : selectedSection === "trash" ? (
           <TrashPage />
+        ) : selectedSection === "teaching" ? (
+          <Suspense fallback={<div className="h-full" />}>
+            <TeachingPage />
+          </Suspense>
         ) : (
           <DashboardPage />
         )}

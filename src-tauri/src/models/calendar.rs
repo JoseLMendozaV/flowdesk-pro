@@ -20,6 +20,8 @@ pub struct CalendarEvent {
     pub reminder_minutes: Option<i64>,
     pub recurrence: Option<RecurrenceRule>,
     pub series_starts_at: i64,
+    /// `local`, o `teaching` si refleja algo de Docencia (horario, entregas, planificación).
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

@@ -5,12 +5,14 @@
 //             &timer=idle|running  &entry=running  &state=first-run|news|seen  &panel=0
 //             &hidden=1 (dashboard oculto)  &settings=1 (abre Configuración)  &tour=<id> (visita guiada)
 //             &return=1 (la visita vuelve a la bienvenida)  &demo=1  &palette=1 (abre la paleta ⌘K)
+//             &tab=<pestaña de Docencia> (con target=teaching)
 // Cada llamada al IPC queda en `window.__flowdeskCalls` para las pruebas de flujos.
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import * as data from "./demoData";
+import { teachingHandlers } from "./teachingDemo";
 import { availableFeatures, revisionMap } from "../../src/features/onboarding/registry/registry";
 import "../../src/styles/globals.css";
 
@@ -44,6 +46,7 @@ function onboardingState() {
 let onboarding = onboardingState();
 
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
+  ...teachingHandlers,
   get_dashboard_summary: () => data.dashboard,
   list_tasks: (args) => data.listTasks(args.filter as { view: string }),
   list_tags: () => data.tags,
@@ -146,7 +149,7 @@ async function render() {
   if (view) url.searchParams.set("view", view);
   window.history.replaceState(null, "", url);
   const [{ default: App }, { useAppStore }] = await Promise.all([import("../../src/App"), import("../../src/stores/appStore")]);
-  if (!view) useAppStore.setState({ selectedSection: target as never, taskView: "today", taskLayout: "list", calendarMode: "week", rightPanelVisible: params.get("panel") !== "0" });
+  if (!view) useAppStore.setState({ selectedSection: target as never, taskView: "today", taskLayout: "list", calendarMode: "week", rightPanelVisible: params.get("panel") !== "0", teachingCourseId: 1, teachingTab: (params.get("tab") ?? "dashboard") as never });
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <App />

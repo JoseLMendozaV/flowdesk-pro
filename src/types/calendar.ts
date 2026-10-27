@@ -19,6 +19,8 @@ export type CalendarEvent = {
   reminderMinutes: number | null;
   recurrence: RecurrenceRule | null;
   seriesStartsAt: number;
+  /** `local`, o `teaching` si refleja algo de Docencia (horario, entregas, planificación). */
+  source: "local" | "teaching";
 };
 
 /** A qué repeticiones de un evento se aplica un cambio o un borrado. */

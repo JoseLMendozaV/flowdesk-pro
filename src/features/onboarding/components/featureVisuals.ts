@@ -7,6 +7,7 @@ import {
   Clock3,
   Focus,
   FolderKanban,
+  GraduationCap,
   Home,
   PanelTop,
   Search,
@@ -29,6 +30,7 @@ export const featureIcons: Record<FeatureIconName, LucideIcon> = {
   "menu-bar": PanelTop,
   search: Search,
   trash: Trash2,
+  teaching: GraduationCap,
   ai: Bot,
 };
 

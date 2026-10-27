@@ -23,6 +23,7 @@ const featureShots = {
   clipboard: { query: "target=clipboard", ...WINDOW },
   "command-palette": { query: "target=dashboard&palette=1", ...WINDOW },
   trash: { query: "target=trash", ...WINDOW },
+  teaching: { query: "target=teaching&tab=schedule", ...WINDOW },
   "menu-bar": { query: "target=tray", ...TRAY },
 };
 
